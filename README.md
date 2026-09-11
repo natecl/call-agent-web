@@ -1,9 +1,11 @@
-# Treena
+# call-agent-web
 
-Public landing for **Treena — AI that makes phone calls for you**.
+Public landing for **Treena** (https://usetreena.com).
 
-- Product domain: `usetreena.com` (DNS in flight)
-- Static host: Cloudflare Pages (`public/`)
-- Deploy: `npx wrangler pages deploy public --project-name=call-agent`
+Hosted on Cloudflare Pages project `call-agent`. Source of truth is Nathan’s Astra static landing (localhost:4173 / `outputs/relay`), Relay→Treena rename applied. Do not restyle from the Pages screenshot rebuild.
 
-The consumer product name is Treena. Treena is the product, not a person.
+Deploy:
+
+```sh
+npx wrangler pages deploy public --project-name=call-agent
+```
