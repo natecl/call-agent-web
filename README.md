@@ -1,7 +1,9 @@
-# call-agent-web
+# Treena
 
-Neutral Cloudflare Pages host for Nathan's call-agent product.
+Public landing for **Treena — AI that makes phone calls for you**.
 
-- Infra only — no product brand lock yet
-- Static placeholder until Pixel landing ships
+- Product domain: `usetreena.com` (DNS in flight)
+- Static host: Cloudflare Pages (`public/`)
 - Deploy: `npx wrangler pages deploy public --project-name=call-agent`
+
+The consumer product name is Treena. Treena is the product, not a person.
