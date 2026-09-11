@@ -14,7 +14,7 @@ This map uses exactly three status values.
 
 ## Host today
 
-The live URL is `https://call-agent-7qt.pages.dev/`, measured by GET this session.
+The live consumer URLs are `https://usetreena.com` and `https://www.usetreena.com`, measured by GET this session. The Pages preview `https://call-agent-7qt.pages.dev/` still serves the same HTML.
 
 The file that ships on that host is `public/index.html`. `README.md` is in the repo and is not served.
 
@@ -26,7 +26,7 @@ A GET of `https://call-agent-7qt.pages.dev/anything-missing` returns HTTP 200 an
 
 The public brand is Treena, measured from Nathan via Cap this session. That name is not on the live page. The live HTML still says product name is TBD.
 
-The consumer home domain is `usetreena.com`, measured from Nathan via Cap this session. The domain is bought. Attach to Cloudflare Pages is HOLD. Preview remains `https://call-agent-7qt.pages.dev/`.
+The consumer home domain is `usetreena.com`. Apex and `www` are live on Cloudflare Pages project `call-agent`, measured. HTTPS GET of `https://usetreena.com` and `https://www.usetreena.com` returns HTTP 200 and the same 997-byte HTML as `public/index.html`.
 
 The product landing is absent. The SoT landing is not on this host, measured against the attached frame and `relay-agent-handoff.md`.
 
@@ -42,7 +42,7 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | host-placeholder-scaffold | host | A visitor at the Pages URL sees a dark, centered call-agent placeholder. | none | `public/index.html` is a dark centered page. Title and h1 are `call-agent`. Copy says this URL is infra only. | `https://call-agent-7qt.pages.dev/` returns the same 997-byte HTML. | shipped | measured. Live GET `/` SHA-256 matches `public/index.html`. |
 | sot-static-entry | host | The SoT landing is static HTML with no build step. | Entry files are `index.html`, `style.css`, `app.js`, and `assets/`. | This repo has only `public/index.html`. There is no `style.css`, `app.js`, or `assets/`. | The live host serves that placeholder HTML only. | sot-ready | measured. `relay-agent-handoff.md` names those entry files. A workspace listing has only `public/index.html` as the page. |
-| domain-usetreena | host | The consumer home domain is `usetreena.com`. | The domain is bought. Attach to Cloudflare Pages is HOLD. | This repo has no DNS config. | Preview remains `https://call-agent-7qt.pages.dev/`. The custom domain is not attached. | not-started | measured. Nathan via Cap this session. Attach is Cap HOLD. |
+| domain-usetreena | host | The consumer home domain is `usetreena.com`. | Apex ALIAS and www CNAME point at `call-agent-7qt.pages.dev` on Cloudflare Pages project `call-agent`. | This repo has no DNS config. | `https://usetreena.com` and `https://www.usetreena.com` return HTTP 200 and the same 997-byte HTML as the Pages preview. | shipped | measured. GET of both hostnames this session. SHA-256 matches `public/index.html`. www CNAME is `call-agent-7qt.pages.dev`. |
 | brand-public-treena | brand | The public brand is Treena. | Public brand is Treena. Locked. | `README.md` records Treena as the locked public brand in this map. It still describes the live host as a placeholder. `public/index.html` says product name is TBD. The h1 is `call-agent`. | The live page uses the same TBD copy. There is no Treena wordmark on the host. | sot-ready | measured. Nathan via Cap this session locked Treena. Live HTML still says TBD. |
 | brand-relay-codename | brand | Relay is internal and legacy SoT. | Relay is the internal and legacy SoT codename. SoT mock wordmark lettering and "Text Relay" CTA copy may still use Relay-family strings. Those strings are not the public brand. | absent as a live name. SoT CTA copy is not implemented. | absent | sot-ready | measured. Nathan via Cap this session. SoT frame and CTA copy still use Relay-family strings. |
 | brand-sot-wordmark | brand | The SoT landing shows a left nav wordmark. | The overall-page frame shows a left wordmark. The public shipping wordmark is Treena. Exact letter forms in that PNG may still be Relay-family. | absent | absent | sot-ready | measured. The attached frame shows a left wordmark. Public shipping wordmark is Treena, measured from Nathan via Cap this session. Exact PNG letter spelling is inferred. |
@@ -84,11 +84,11 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 
 ### Host
 
-The live preview is `https://call-agent-7qt.pages.dev/`, measured.
+The live consumer host is `https://usetreena.com`, with `https://www.usetreena.com` as well, measured. The Pages preview `https://call-agent-7qt.pages.dev/` still serves the same placeholder.
 
 The SoT landing is static HTML with no build step. Entry files are `index.html`, `style.css`, `app.js`, and `assets/`, measured from `relay-agent-handoff.md`. This repo has only `public/index.html`.
 
-The consumer home domain is `usetreena.com`. It is bought. Attach to Cloudflare Pages is HOLD, measured from Nathan via Cap this session. Status is not-started.
+The consumer home domain is `usetreena.com`. It is live on Cloudflare Pages project `call-agent`. Status is shipped.
 
 ### Nav
 
@@ -190,7 +190,7 @@ Relay is the internal and legacy SoT codename, measured from Nathan via Cap this
 
 The SoT frame shows a left wordmark, measured. The public shipping wordmark is Treena. Exact letter forms in that PNG may still be Relay-family. That spelling gap is inferred.
 
-The consumer home domain is `usetreena.com`, measured from Nathan via Cap this session. Attach to Cloudflare Pages is HOLD. Status for attach is not-started.
+The consumer home domain is `usetreena.com`. It is live at `https://usetreena.com` and `https://www.usetreena.com`. Status for attach is shipped.
 
 ### SoT assets
 
@@ -236,13 +236,12 @@ The overall-page frame is the attached PNG `09-illustrated-use-cases.png`, measu
 
 - The public brand is Treena. Locked.
 - The consumer home domain is `usetreena.com`. Bought.
-- Attach to Cloudflare Pages is HOLD. Preview remains `https://call-agent-7qt.pages.dev/`.
 - Relay is the internal and legacy SoT codename. Treena is the public brand.
 
 **Measured from this repo and the live host.**
 
 - `public/index.html` is the only shipped page. It is 997 bytes. SHA-256 is `d3b953ea959750bbc77c2779d62b51edaf5a89145cc191f447299ac8a1d40791`.
-- Live `/` and an unknown path both return that HTML.
+- `https://usetreena.com`, `https://www.usetreena.com`, and `https://call-agent-7qt.pages.dev/` each return that HTML. Live `/` on the preview and an unknown preview path both return that HTML.
 - There is no nav, hero, demo, use-case band, CTA, or JavaScript.
 - There is no `style.css`, `app.js`, or `assets/` directory.
 - No SoT assets are in git. `relay-agent-handoff.md` is not in this git tree. README is not served.
@@ -270,4 +269,3 @@ These items are outside this map.
 - R2
 - Workers
 - The product calling stack in `natecl/call-agent`
-- DNS and custom-domain attach for `usetreena.com`. Attach is Cap HOLD.
