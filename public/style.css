@@ -185,3 +185,15 @@ footer{margin-top:68px;padding-top:30px;padding-bottom:36px}
 /* Separate the answer bubble from the phone hardware. */
 .live-caption{margin-top:40px}
 @media(max-width:620px){.live-caption{margin-top:18px}}
+
+/* Inner pages and footer legal links. Scoped so home demo, motion, and type stay unchanged. */
+.footer-right{display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:flex-end}
+.footer-right a{color:inherit}
+.footer-right a:hover{color:#007aff}
+.page-main{max-width:720px;margin:0 auto;padding:64px 24px 48px}
+.page-main h1{font-size:clamp(38px,5vw,64px);letter-spacing:-.045em;word-spacing:.035em;line-height:1.12;font-weight:850;margin:0 0 16px}
+.page-lead{font-size:21px;color:var(--muted);line-height:1.43;letter-spacing:-.035em;margin:0 0 12px}
+.page-main h2{font-size:21px;font-weight:650;letter-spacing:-.03em;margin:32px 0 8px}
+.page-main p{font-size:16px;color:#4d586f;line-height:1.55;letter-spacing:-.02em;margin:0}
+.page-cta{margin-top:28px}
+@media(max-width:620px){.page-main{padding:36px 20px 32px}.page-main h1{font-size:38px}.page-lead{font-size:17px}.footer-right{justify-content:flex-start}}
