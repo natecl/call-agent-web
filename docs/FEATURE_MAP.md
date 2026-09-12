@@ -6,14 +6,14 @@ This file maps the public landing as a product surface. It is not an implementat
 
 Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
 
-TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription.
+TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. TRE-20 ties that TEST account to an **E.164 phone**, the selected **plan**, that plan’s **minutes allowance**, and Nathan’s locked **opt-in surface A**: an **account-level** retention setting, **default off**, that **persists with login** (Stripe TEST Customer `metadata[retain_after_call]`). Login and billing minutes may persist either way. Audio, transcripts, and call history are not default-saved. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. Neon is still out of scope. The TEST account record is a Stripe Customer (`phone` + metadata) + subscription metadata. Live click-through is qa — this map’s TEST rows are verifier-proven, not live-signed-off. This climb does not rewrite `public/privacy.html`. The privacy **page claim is gated / not-shipped** until wipe B matches. Wipe B (write during the call, delete at hangup unless opted in; crash-window leftover accepted) is specified for call-agent TRE-23 — **sot-ready**, not implemented in this repo.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
 | `/pricing.html` | `public/pricing.html` | shipped | Headline is Pricing. Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Directory index: `public/pricing/index.html` (`/pricing/`). |
-| `/account.html` | `public/account.html` | shipped | Create-account form: email required, name optional, Continue. Email is the account. Stripe Customer is created at checkout (TEST). Plan preserved. Directory index: `public/account/index.html` (`/account/`). |
-| `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
-| `/start.html` | `public/start.html` | shipped | Post-pay start/done screen. Unlocks only after `GET /api/session` verifies a paid TEST Checkout Session. First Text Treena in this flow. Reuses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
+| `/account.html` | `public/account.html` | shipped | Create-account form: email required, **phone required (E.164)**, name optional, **account-level** retain checkbox **unchecked by default** (persists with login). Continue. Account is email + phone + plan + minutes + opt-in. Stripe Customer is created/updated at checkout (TEST) with phone, plan, minutes, and `retain_after_call`. Directory index: `public/account/index.html` (`/account/`). |
+| `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage), email, E.164 phone, and the **account save setting** (default Don’t save). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
+| `/start.html` | `public/start.html` | shipped | Post-pay start/done screen. Unlocks only after `GET /api/session` verifies a paid TEST Checkout Session with plan, minutes, and phone. First Text Treena in this flow. Reuses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
 
 Order: landing (untouched) → account + pay (Stripe TEST, no trial) → then Text Treena.
 
@@ -24,17 +24,24 @@ Locked plans only:
 
 No trial. No free forever. No annual/team/enterprise.
 
-Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`).
+Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Checkout requires plan + email + E.164 phone. Customer metadata stores `plan`, `phone`, `minutes`, and `retain_after_call` (`off` unless the user opts in). That flag is the account record that persists with login. Subscription metadata stores the same plus overage. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). Live host click-through is qa.
 
-Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging.
+Call-agent flag shape (this repo only — hangup delete is a parallel climb on `natecl/call-agent`, do not block TRE-20 on it): Stripe Customer / Checkout Session / subscription `metadata[retain_after_call]` is `off` (default) or `on`. `GET /api/session` returns `retainAfterCall` with the same values. Missing/junk normalizes to `off`.
+
+Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging, privacy page rewrite, privacy page live claim for default-wipe, hangup wipe / ephemeral audio-transcript behavior in this repo.
 
 ## Privacy
 
-Nathan GO 2026-09-12: this locked copy **is live** at `https://usetreena.com/privacy` (Pages deploy from `867e411c`, project `call-agent`). Do not hold for Builder default-no-store — page copy shipped; TRE-20 account opt-in + TRE-23 wipe remain separate climbs.
+TRE-21 scare-line copy is in `public/privacy.html`. This climb does **not** rewrite it. The privacy **page claim is gated / not-shipped** until wipe B matches this account flag. Do **not** claim the privacy page live.
+
+Nathan locked two surfaces. This climb ships **A** only:
+
+1. **Opt-in A** — account-level retention setting, **default off**, persists with login. Shipped on `/account` as `#retain-after-call` and Stripe Customer `metadata[retain_after_call]`.
+2. **Wipe B** — write audio/transcript/history during the call, then **delete at hangup** unless the account opted in. Login + billing minute totals may persist either way. Crash-window leftover is accepted. Hangup delete is TRE-23 on `natecl/call-agent`, not this repo. Documented here as **sot-ready** (specified, not implemented here). The privacy **page claim stays gated / not-shipped** until that hangup delete matches this account flag.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
-| `/privacy.html` | `public/privacy.html` | shipped | Headline is Privacy. Lead is the scare line. Directory index: `public/privacy/index.html` (`/privacy/`). Same chrome as other inner pages. |
+| `/privacy.html` | `public/privacy.html` | sot-ready | TRE-21 scare-line copy is in the repo (headline Privacy; lead “We don’t store anything unless you opt in.”). **Page claim gated / not-shipped until wipe B matches.** This climb does not rewrite the HTML and does not claim the page live. Directory index: `public/privacy/index.html` (`/privacy/`). Same chrome as other inner pages. |
 
 Headline: Privacy. Lead (the scare line): We don’t store anything unless you opt in.
 
@@ -127,7 +134,12 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | cta-message-url-stub | cta-integration | A visitor who uses a CTA follows `RELAY_MESSAGE_URL` when it is set. | The SoT identifier is `RELAY_MESSAGE_URL`. It is legacy-named. The visitor-facing public brand is Treena. An empty value is the coming-soon path. This map does not invent a second env name. | `public/app.js` sets `RELAY_MESSAGE_URL` to an empty string. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names `RELAY_MESSAGE_URL`. `public/app.js` has that identifier, empty. |
 | cta-coming-soon-dialog | cta-integration | A visitor sees a coming-soon dialog when the message URL is empty. | Empty `RELAY_MESSAGE_URL` opens a coming-soon dialog. | `public/index.html` has `#contact-dialog`. Copy is "Treena’s number is coming soon." | The live page has the same dialog. | shipped | measured. `relay-agent-handoff.md` names that dialog. Live HTML contains that copy. |
 | cta-no-phone-numbers | cta-integration | The landing does not present a product phone number. | `relay-agent-handoff.md` records that phone numbers must not be invented. | `public/index.html` has no product phone number. The dialog says the number is coming soon. | The live landing has the same absence. | shipped | measured. `relay-agent-handoff.md` records that phone numbers must not be invented. Live HTML has none. |
-| cta-no-backend | cta-integration | A visitor cannot sign up, start a call, or reach a calling backend from this landing. | `relay-agent-handoff.md` states that the landing has no backend, signup, or calling. | Home has no signup form and no calling API. Text Treena opens the coming-soon dialog. Stripe TEST checkout is other routes (TRE-17). | The live home has the same absence. | shipped | measured. Live home HTML has no signup form and no calling wiring. |
+| cta-no-backend | cta-integration | A visitor cannot sign up, start a call, or reach a calling backend from this landing. | `relay-agent-handoff.md` states that the landing has no backend, signup, or calling. | Home has no signup form and no calling API. Text Treena opens the coming-soon dialog. Stripe TEST checkout is other routes (TRE-17 / TRE-20). | The live home has the same absence. | shipped | measured. Live home HTML has no signup form and no calling wiring. |
+| account-phone-e164 | account | A personal TEST account is tied to an E.164 phone number. | TRE-20. iMessage start. | `public/account.html` requires `#account-phone`. `functions/_lib/phone.js` normalizes E.164. Checkout writes Stripe Customer `phone` + `metadata[phone]`. `GET /api/session` returns phone. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Phone is required on checkout. Invalid numbers are 400. Home is unchanged. |
+| account-plan | account | A personal TEST account is tied to Personal ($20 / 30 min) or Plus ($40 / 90 min). | TRE-17 / TRE-20 locked plans. No trial. | Pricing cards pass `?plan=`. Account/pay/start echo the plan. Checkout + subscription metadata store `plan`. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Unknown plans are 400. |
+| account-minutes | account | A personal TEST account is tied to the selected plan’s minutes allowance. | TRE-20. Personal 30 / Plus 90. Login and billing minutes may persist. | Pay and start show connected minutes. Customer and subscription metadata store `minutes` from the locked plan, not a free-form value. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. `paidSessionView` returns `minutes` from `PLANS`. |
+| account-retain-opt-in | account | Account-level retention setting. Default off. Persists with login (Stripe TEST Customer `metadata[retain_after_call]`). Audio, transcripts, and call history are not default-saved. | Nathan lock surface A. TRE-20. | Account checkbox `#retain-after-call` is unchecked. Checkout writes `metadata[retain_after_call]=off` unless opted in. Existing Customer is updated. `GET /api/session` returns `retainAfterCall`. Pay and start echo the account save setting. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Missing/junk values normalize to off. This climb does not implement call-agent wipe. Privacy page claim gated. |
+| privacy-default-wipe | privacy | Call path writes audio/transcript/history during the call, then deletes at hangup unless the account opted in. Login and billing minutes may persist. Crash-window leftover accepted. | Nathan lock wipe B. TRE-23 on natecl/call-agent. Privacy page claim gated / not-shipped until this matches. | absent in this repo. No hangup delete. No ephemeral audio-transcript wipe. Flag shape only: Stripe `metadata[retain_after_call]` = `off` \| `on`; `GET /api/session` returns `retainAfterCall`. | Do not claim live. | sot-ready | measured. This repo stops at the account opt-in flag. Call-agent hangup delete is a parallel climb. |
 | visual-system | visual-system | The SoT landing uses a white canvas, bold black Inter headings, blue filled CTAs, a pearl-gray demo stage, cartoonish illustrations, handwritten notes, vector ink arrows, a handset, a cord, and restrained pastels. | The frame has a yellow underline and a peach word highlight. First-session handoff names the typeface Inter and the direction useful, simple, warm, and polished. `relay-agent-handoff.md` names cartoonish illustrations, handwritten notes, and vector ink arrows, a handset, and a cord. The white answer and caption bubble is approved. | `public/style.css` sets `body` background `#fff` and Inter. `public/assets/` has illustration PNGs and `InterVariable.woff2`. | The live host is that light landing, not a dark placeholder. | shipped | measured. Live CSS is white canvas. First-session handoff names Inter. Home visual restyle remains HOLD. |
 | sot-overall-page-frame | sot-assets | The approved overall-page frame is the composition source for this map. | The attached file is `09-illustrated-use-cases.png`. The PNG is not in git. | absent | absent | sot-ready | measured. The parent task attached the PNG. The workspace file list has no SoT image. |
 | sot-handoff-md | sot-assets | `relay-agent-handoff.md` is a source for this map. | That file is measured handoff text from the parent task. It is not in this git tree. | absent | absent | sot-ready | measured. The parent task named that file. A workspace listing has no copy of it. |
@@ -218,7 +230,7 @@ The SoT identifier is `RELAY_MESSAGE_URL`. It is legacy-named. The visitor-facin
 
 `relay-agent-handoff.md` records that phone numbers must not be invented.
 
-No calling backend or signup form is connected on the landing, measured from `relay-agent-handoff.md` and from home HTML. Stripe TEST checkout is other routes (TRE-17). The coming-soon dialog is present when Text Treena is used and the message URL is empty. Status for that stub control is shipped.
+No calling backend or signup form is connected on the landing, measured from `relay-agent-handoff.md` and from home HTML. Stripe TEST checkout is other routes (TRE-17 / TRE-20). The coming-soon dialog is present when Text Treena is used and the message URL is empty. Status for that stub control is shipped.
 
 ### Visual system
 
@@ -314,6 +326,9 @@ These items are outside this map.
 - Pixel rebuild
 - Live Stripe (`sk_live_`) / KYC / real charges
 - Fly / call-agent FastAPI / Linq live messaging
+- Hangup wipe / ephemeral audio-transcript behavior in this repo (TRE-23 is `natecl/call-agent`)
+- Privacy page rewrite
+- Privacy page live claim for default-wipe (page claim gated / not-shipped until wipe B matches the account flag)
 - Cloudflare Git wiring
 - Neon
 - R2
