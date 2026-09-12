@@ -30,7 +30,7 @@ Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastA
 
 ## Privacy
 
-Nathan GO 2026-09-12: this locked copy is the live privacy page. It should go live on `https://usetreena.com/privacy`. Do not hold for Builder default-no-store. Builder deploy may follow merge.
+Nathan GO 2026-09-12: this locked copy **is live** at `https://usetreena.com/privacy` (Pages deploy from `867e411c`, project `call-agent`). Do not hold for Builder default-no-store — page copy shipped; TRE-20 account opt-in + TRE-23 wipe remain separate climbs.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
