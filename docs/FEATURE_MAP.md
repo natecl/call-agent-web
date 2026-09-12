@@ -6,13 +6,13 @@ This file maps the public landing as a product surface. It is not an implementat
 
 Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
 
-TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. TRE-20 ties that TEST account to an **E.164 phone**, the selected **plan**, that plan’s **minutes allowance**, and a **retain-after-call opt-in that defaults off**. Login and billing minutes may persist. Audio, transcripts, and call history are not default-saved. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. Neon is still out of scope. The TEST account record is a Stripe Customer (`phone` + metadata) + subscription metadata. Live click-through is qa — this map’s TEST rows are verifier-proven, not live-signed-off. Privacy page **copy** shipped on main (TRE-21). This climb does not rewrite it. Call-agent default-wipe is TRE-23 — do not claim wipe live.
+TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. TRE-20 ties that TEST account to an **E.164 phone**, the selected **plan**, that plan’s **minutes allowance**, and Nathan’s locked **opt-in surface A**: an **account-level** retention setting, **default off**, that **persists with login** (Stripe TEST Customer `metadata[retain_after_call]`). Login and billing minutes may persist either way. Audio, transcripts, and call history are not default-saved. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. Neon is still out of scope. The TEST account record is a Stripe Customer (`phone` + metadata) + subscription metadata. Live click-through is qa — this map’s TEST rows are verifier-proven, not live-signed-off. This climb does not rewrite `public/privacy.html` and does **not** claim the privacy page live for default-wipe. Wipe B (write during the call, delete at hangup unless opted in) is call-agent TRE-23 — documented here as not-started, not implemented in this repo.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
 | `/pricing.html` | `public/pricing.html` | shipped | Headline is Pricing. Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Directory index: `public/pricing/index.html` (`/pricing/`). |
-| `/account.html` | `public/account.html` | shipped | Create-account form: email required, **phone required (E.164)**, name optional, retain-after-call checkbox **unchecked by default**, Continue. Account is email + phone + plan + minutes + opt-in. Stripe Customer is created/updated at checkout (TEST) with phone, plan, minutes, and `retain_after_call`. Directory index: `public/account/index.html` (`/account/`). |
-| `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage), email, E.164 phone, and retain-after-call (default Don’t save). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
+| `/account.html` | `public/account.html` | shipped | Create-account form: email required, **phone required (E.164)**, name optional, **account-level** retain checkbox **unchecked by default** (persists with login). Continue. Account is email + phone + plan + minutes + opt-in. Stripe Customer is created/updated at checkout (TEST) with phone, plan, minutes, and `retain_after_call`. Directory index: `public/account/index.html` (`/account/`). |
+| `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage), email, E.164 phone, and the **account save setting** (default Don’t save). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
 | `/start.html` | `public/start.html` | shipped | Post-pay start/done screen. Unlocks only after `GET /api/session` verifies a paid TEST Checkout Session with plan, minutes, and phone. First Text Treena in this flow. Reuses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
 
 Order: landing (untouched) → account + pay (Stripe TEST, no trial) → then Text Treena.
@@ -24,17 +24,22 @@ Locked plans only:
 
 No trial. No free forever. No annual/team/enterprise.
 
-Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Checkout requires plan + email + E.164 phone. Customer metadata stores `plan`, `phone`, `minutes`, and `retain_after_call` (`off` unless the user opts in). Subscription metadata stores the same plus overage. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). Live host click-through is qa.
+Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Checkout requires plan + email + E.164 phone. Customer metadata stores `plan`, `phone`, `minutes`, and `retain_after_call` (`off` unless the user opts in). That flag is the account record that persists with login. Subscription metadata stores the same plus overage. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). Live host click-through is qa.
 
-Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging, privacy page rewrite, default-wipe in call-agent (TRE-23).
+Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging, privacy page rewrite, privacy page live claim for default-wipe, hangup wipe / ephemeral audio-transcript behavior in this repo.
 
 ## Privacy
 
-Nathan GO 2026-09-12: this locked copy **is live** at `https://usetreena.com/privacy` (Pages deploy from `867e411c`, project `call-agent`). Do not hold for Builder default-no-store — page copy shipped; TRE-20 account opt-in + TRE-23 wipe remain separate climbs.
+TRE-21 scare-line copy is in `public/privacy.html`. This climb does **not** rewrite it. Do **not** claim the privacy page live for default-wipe.
+
+Nathan locked two surfaces. This climb ships **A** only:
+
+1. **Opt-in A** — account-level retention setting, **default off**, persists with login. Shipped on `/account` as `#retain-after-call` and Stripe Customer `metadata[retain_after_call]`.
+2. **Wipe B** — write audio/transcript/history during the call, then **delete at hangup** unless the account opted in. Login + billing minute totals may persist either way. Crash-window leftover is accepted. Hangup delete is TRE-23 on `natecl/call-agent`, not this repo. Documented here as **not-started**. The privacy **page claim** stays gated until that hangup delete matches this account flag.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
-| `/privacy.html` | `public/privacy.html` | shipped | Headline is Privacy. Lead is the scare line. Directory index: `public/privacy/index.html` (`/privacy/`). Same chrome as other inner pages. |
+| `/privacy.html` | `public/privacy.html` | shipped | TRE-21 scare-line copy is in the repo (headline Privacy; lead “We don’t store anything unless you opt in.”). **This climb does not rewrite it and does not claim the page live for default-wipe.** Directory index: `public/privacy/index.html` (`/privacy/`). Same chrome as other inner pages. |
 
 Headline: Privacy. Lead (the scare line): We don’t store anything unless you opt in.
 
@@ -131,7 +136,8 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | account-phone-e164 | account | A personal TEST account is tied to an E.164 phone number. | TRE-20. iMessage start. | `public/account.html` requires `#account-phone`. `functions/_lib/phone.js` normalizes E.164. Checkout writes Stripe Customer `phone` + `metadata[phone]`. `GET /api/session` returns phone. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Phone is required on checkout. Invalid numbers are 400. Home is unchanged. |
 | account-plan | account | A personal TEST account is tied to Personal ($20 / 30 min) or Plus ($40 / 90 min). | TRE-17 / TRE-20 locked plans. No trial. | Pricing cards pass `?plan=`. Account/pay/start echo the plan. Checkout + subscription metadata store `plan`. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Unknown plans are 400. |
 | account-minutes | account | A personal TEST account is tied to the selected plan’s minutes allowance. | TRE-20. Personal 30 / Plus 90. Login and billing minutes may persist. | Pay and start show connected minutes. Customer and subscription metadata store `minutes` from the locked plan, not a free-form value. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. `paidSessionView` returns `minutes` from `PLANS`. |
-| account-retain-opt-in | account | A personal TEST account carries retain-after-call preference. Default is off. Audio, transcripts, and call history are not default-saved. | Nathan privacy LOCK. TRE-20. Wipe is TRE-23 (call-agent). | Account checkbox `#retain-after-call` is unchecked. Checkout writes `metadata[retain_after_call]=off` unless opted in. `GET /api/session` returns `retainAfterCall`. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Missing/junk values normalize to off. Privacy page copy is TRE-21; this climb does not rewrite it. |
+| account-retain-opt-in | account | Account-level retention setting. Default off. Persists with login (Stripe TEST Customer `metadata[retain_after_call]`). Audio, transcripts, and call history are not default-saved. | Nathan lock surface A. TRE-20. | Account checkbox `#retain-after-call` is unchecked. Checkout writes `metadata[retain_after_call]=off` unless opted in. Existing Customer is updated. `GET /api/session` returns `retainAfterCall`. Pay and start echo the account save setting. | Live click-through is qa. | shipped | measured. `npm run verify` TEST path. Missing/junk values normalize to off. This climb does not implement call-agent wipe. Privacy page claim gated. |
+| privacy-default-wipe | privacy | Call path writes audio/transcript/history during the call, then deletes at hangup unless the account opted in. Login and billing minutes may persist. Crash-window leftover accepted. | Nathan lock wipe B. TRE-23 on natecl/call-agent. Privacy page claim gated until this matches. | absent in this repo. No hangup delete. No ephemeral audio-transcript wipe. Account flag only: `retain_after_call`. | Do not claim live. | not-started | measured. This repo stops at the account opt-in flag. Call-agent hangup delete is a parallel climb. |
 | visual-system | visual-system | The SoT landing uses a white canvas, bold black Inter headings, blue filled CTAs, a pearl-gray demo stage, cartoonish illustrations, handwritten notes, vector ink arrows, a handset, a cord, and restrained pastels. | The frame has a yellow underline and a peach word highlight. First-session handoff names the typeface Inter and the direction useful, simple, warm, and polished. `relay-agent-handoff.md` names cartoonish illustrations, handwritten notes, and vector ink arrows, a handset, and a cord. The white answer and caption bubble is approved. | `public/style.css` sets `body` background `#fff` and Inter. `public/assets/` has illustration PNGs and `InterVariable.woff2`. | The live host is that light landing, not a dark placeholder. | shipped | measured. Live CSS is white canvas. First-session handoff names Inter. Home visual restyle remains HOLD. |
 | sot-overall-page-frame | sot-assets | The approved overall-page frame is the composition source for this map. | The attached file is `09-illustrated-use-cases.png`. The PNG is not in git. | absent | absent | sot-ready | measured. The parent task attached the PNG. The workspace file list has no SoT image. |
 | sot-handoff-md | sot-assets | `relay-agent-handoff.md` is a source for this map. | That file is measured handoff text from the parent task. It is not in this git tree. | absent | absent | sot-ready | measured. The parent task named that file. A workspace listing has no copy of it. |
@@ -318,8 +324,9 @@ These items are outside this map.
 - Pixel rebuild
 - Live Stripe (`sk_live_`) / KYC / real charges
 - Fly / call-agent FastAPI / Linq live messaging
-- Default-wipe of audio/transcripts/history in `natecl/call-agent` (TRE-23)
-- Privacy page rewrite / live privacy claim
+- Hangup wipe / ephemeral audio-transcript behavior in this repo (TRE-23 is `natecl/call-agent`)
+- Privacy page rewrite
+- Privacy page live claim for default-wipe (page claim gated until wipe B matches the account flag)
 - Cloudflare Git wiring
 - Neon
 - R2

@@ -131,8 +131,10 @@ ok('start echoes phone, plan, minutes', /data-account-phone/.test(read('public/s
 ok('account phone input is not the SVG #phone symbol', /getElementById\('account-phone'\)/.test(read('public/checkout.js')) && /id="account-phone"/.test(accountHtml));
 ok('client checkout posts phone', /JSON\.stringify\(\{ plan: plan\.id, email, name, phone, retainAfterCall \}\)/.test(read('public/checkout.js')));
 ok('retain checkbox defaults off', /id="retain-after-call"/.test(accountHtml) && !/<input[^>]*id="retain-after-call"[^>]*checked/.test(accountHtml));
-ok('pay echoes retain preference', /data-retain-label/.test(pay));
-ok('start echoes retain preference', /data-retain-label/.test(read('public/start.html')));
+ok('retain is an account-level setting that persists with login', /Account setting/.test(accountHtml) && /Stays with this login/.test(accountHtml) && /Login and billing minutes still persist either way/.test(accountHtml));
+ok('pay echoes account save setting', /Account save setting/.test(pay) && /data-retain-label/.test(pay) && !/After a call/.test(pay));
+ok('start echoes retain preference', /data-retain-label/.test(read('public/start.html')) && /Account setting: don’t save audio, transcripts, or history/.test(read('public/start.html')));
+ok('this repo does not implement hangup wipe', !/hangup|write-then-delete|ephemeral/.test(read('functions/_lib/checkout.js') + read('functions/_lib/retain.js') + read('public/checkout.js')));
 
 ok('Pages Functions: checkout', existsSync(join(root, 'functions/api/checkout.js')));
 ok('Pages Functions: session', existsSync(join(root, 'functions/api/session.js')));
@@ -270,7 +272,10 @@ let existingCustomerUpdated = false;
 const existingMock = mockStripe({
   customers: [{ id: 'cus_existing' }],
   onCustomer(form, kind) {
-    existingCustomerUpdated = kind === 'update' && form.get('phone') === TEST_PHONE && form.get('metadata[minutes]') === '30';
+    existingCustomerUpdated = kind === 'update'
+      && form.get('phone') === TEST_PHONE
+      && form.get('metadata[minutes]') === '30'
+      && form.get('metadata[retain_after_call]') === 'off';
   },
 });
 await createCheckoutSession(testEnv, {
@@ -280,7 +285,7 @@ await createCheckoutSession(testEnv, {
   phone: '4155552671',
   fetchImpl: existingMock.fetchImpl,
 });
-ok('existing Stripe Customer is updated with phone and minutes', existingCustomerUpdated);
+ok('existing Stripe Customer is updated with phone, minutes, and retain_after_call', existingCustomerUpdated);
 
 const paid = paidSessionView({
   id: 'cs_test_abc',
@@ -456,10 +461,11 @@ ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `p
 ok('FEATURE_MAP records E.164 phone account row', featureMap.includes('| account-phone-e164 |') && /E\.164/.test(featureMap));
 ok('FEATURE_MAP records plan and minutes rows', featureMap.includes('| account-plan |') && featureMap.includes('| account-minutes |'));
 ok('FEATURE_MAP records retain-after-call opt-in', featureMap.includes('| account-retain-opt-in |') && /retain_after_call/.test(featureMap));
+ok('FEATURE_MAP surface A is account-level, default off, persists with login', /account-level/.test(featureMap) && /default off/.test(featureMap) && /persists with login/.test(featureMap));
+ok('FEATURE_MAP wipe B is not-started in this repo', featureMap.includes('| privacy-default-wipe |') && /delete at hangup/.test(featureMap) && /privacy-default-wipe \| privacy \|[\s\S]*\| not-started \|/.test(featureMap));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
-ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
-ok('FEATURE_MAP privacy locked copy is the live page', /this locked copy \*\*is live\*\*/.test(featureMap) && /page copy shipped/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
-ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
+ok('FEATURE_MAP records privacy copy in repo without a live wipe claim', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |') && /does not claim the page live for default-wipe/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap) && !/this locked copy \*\*is live\*\*/.test(featureMap));
+ok('FEATURE_MAP gates the privacy page claim until wipe B matches', /page claim stays gated/.test(featureMap.replace(/\*\*/g, '')) && /Privacy page live claim for default-wipe/.test(featureMap));
 ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
 
 const secret = process.env.STRIPE_SECRET_KEY || '';

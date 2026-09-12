@@ -50,8 +50,8 @@
 
   function showRetain(value) {
     fill('[data-retain-label]', value === 'on'
-      ? 'Save audio, transcripts, history'
-      : 'Don’t save audio, transcripts, or history');
+      ? 'Account setting: save audio, transcripts, and history'
+      : 'Account setting: don’t save audio, transcripts, or history');
     document.querySelectorAll('.pay-row [data-retain-label]').forEach((el) => {
       el.textContent = retainLabel(value);
     });
