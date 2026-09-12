@@ -462,10 +462,11 @@ ok('FEATURE_MAP records E.164 phone account row', featureMap.includes('| account
 ok('FEATURE_MAP records plan and minutes rows', featureMap.includes('| account-plan |') && featureMap.includes('| account-minutes |'));
 ok('FEATURE_MAP records retain-after-call opt-in', featureMap.includes('| account-retain-opt-in |') && /retain_after_call/.test(featureMap));
 ok('FEATURE_MAP surface A is account-level, default off, persists with login', /account-level/.test(featureMap) && /default off/.test(featureMap) && /persists with login/.test(featureMap));
-ok('FEATURE_MAP wipe B is not-started in this repo', featureMap.includes('| privacy-default-wipe |') && /delete at hangup/.test(featureMap) && /privacy-default-wipe \| privacy \|[\s\S]*\| not-started \|/.test(featureMap));
+ok('FEATURE_MAP wipe B is sot-ready, not implemented here', /\| privacy-default-wipe \| privacy \|.*\| sot-ready \|/.test(featureMap) && /delete at hangup/.test(featureMap) && /Crash-window leftover/.test(featureMap));
+ok('FEATURE_MAP records call-agent retain flag shape', /metadata\[retain_after_call\]/.test(featureMap) && /retainAfterCall/.test(featureMap) && /off.*on/.test(featureMap));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
-ok('FEATURE_MAP records privacy copy in repo without a live wipe claim', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |') && /does not claim the page live for default-wipe/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap) && !/this locked copy \*\*is live\*\*/.test(featureMap));
-ok('FEATURE_MAP gates the privacy page claim until wipe B matches', /page claim stays gated/.test(featureMap.replace(/\*\*/g, '')) && /Privacy page live claim for default-wipe/.test(featureMap));
+ok('FEATURE_MAP privacy page claim is gated / not-shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | sot-ready |') && /Page claim gated \/ not-shipped until wipe B matches/.test(featureMap.replace(/\*\*/g, '')) && /We don’t store anything unless you opt in/.test(featureMap) && !/this locked copy \*\*is live\*\*/.test(featureMap) && !featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
+ok('FEATURE_MAP gates the privacy page claim until wipe B matches', /page claim stays gated \/ not-shipped/.test(featureMap.replace(/\*\*/g, '')) && /Privacy page live claim for default-wipe/.test(featureMap));
 ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
