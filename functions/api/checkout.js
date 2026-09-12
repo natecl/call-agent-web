@@ -10,6 +10,7 @@ export async function onRequestPost(context) {
       email: body.email,
       name: body.name,
       phone: body.phone,
+      retainAfterCall: body.retainAfterCall,
     });
     return json(result);
   } catch (error) {

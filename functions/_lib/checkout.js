@@ -1,5 +1,6 @@
 import { getPlan } from './plans.js';
 import { assertPhone } from './phone.js';
+import { normalizeRetain } from './retain.js';
 import { encodeForm, stripeRequest } from './stripe.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -14,7 +15,7 @@ export function assertEmail(email) {
   return value;
 }
 
-function customerFields({ email, name, phone, plan }) {
+function customerFields({ email, name, phone, plan, retainAfterCall }) {
   return {
     email,
     name: name || undefined,
@@ -22,18 +23,19 @@ function customerFields({ email, name, phone, plan }) {
     'metadata[plan]': plan.id,
     'metadata[phone]': phone,
     'metadata[minutes]': String(plan.minutes),
+    'metadata[retain_after_call]': retainAfterCall,
     'metadata[source]': 'usetreena-pages-test',
   };
 }
 
-export async function findOrCreateCustomer(env, { email, name, phone, plan, fetchImpl }) {
+export async function findOrCreateCustomer(env, { email, name, phone, plan, retainAfterCall, fetchImpl }) {
   const listed = await stripeRequest(env, {
     method: 'GET',
     path: `customers?email=${encodeURIComponent(email)}&limit=1`,
     fetchImpl,
   });
   const existing = listed.data && listed.data[0];
-  const form = encodeForm(customerFields({ email, name, phone, plan }));
+  const form = encodeForm(customerFields({ email, name, phone, plan, retainAfterCall }));
   if (existing && existing.id) {
     return stripeRequest(env, {
       method: 'POST',
@@ -45,7 +47,7 @@ export async function findOrCreateCustomer(env, { email, name, phone, plan, fetc
   return stripeRequest(env, { method: 'POST', path: 'customers', form, fetchImpl });
 }
 
-export function checkoutForm({ origin, plan, email, name, phone, customerId, priceId }) {
+export function checkoutForm({ origin, plan, email, name, phone, retainAfterCall, customerId, priceId }) {
   const successUrl = `${origin}/start.html?session_id={CHECKOUT_SESSION_ID}&plan=${encodeURIComponent(plan.id)}`;
   const cancelUrl = `${origin}/pay.html?plan=${encodeURIComponent(plan.id)}`;
   const fields = {
@@ -61,11 +63,13 @@ export function checkoutForm({ origin, plan, email, name, phone, customerId, pri
     'metadata[name]': name || undefined,
     'metadata[phone]': phone,
     'metadata[minutes]': String(plan.minutes),
+    'metadata[retain_after_call]': retainAfterCall,
     'subscription_data[metadata][plan]': plan.id,
     'subscription_data[metadata][minutes]': String(plan.minutes),
     'subscription_data[metadata][overage]': plan.overage,
     'subscription_data[metadata][email]': email,
     'subscription_data[metadata][phone]': phone,
+    'subscription_data[metadata][retain_after_call]': retainAfterCall,
   };
   if (priceId) {
     fields['line_items[0][price]'] = priceId;
@@ -79,7 +83,7 @@ export function checkoutForm({ origin, plan, email, name, phone, customerId, pri
   return encodeForm(fields);
 }
 
-export async function createCheckoutSession(env, { origin, planId, email, name, phone, fetchImpl }) {
+export async function createCheckoutSession(env, { origin, planId, email, name, phone, retainAfterCall, fetchImpl }) {
   const plan = getPlan(planId);
   if (!plan) {
     const err = new Error('Choose Personal or Plus');
@@ -88,12 +92,14 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
   }
   const normalizedEmail = assertEmail(email);
   const normalizedPhone = assertPhone(phone);
+  const retain = normalizeRetain(retainAfterCall);
   const trimmedName = String(name || '').trim();
   const customer = await findOrCreateCustomer(env, {
     email: normalizedEmail,
     name: trimmedName,
     phone: normalizedPhone,
     plan,
+    retainAfterCall: retain,
     fetchImpl,
   });
   const priceId = env[plan.priceEnv] || '';
@@ -103,6 +109,7 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     email: normalizedEmail,
     name: trimmedName,
     phone: normalizedPhone,
+    retainAfterCall: retain,
     customerId: customer.id,
     priceId,
   });
@@ -128,6 +135,7 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     plan: plan.id,
     minutes: plan.minutes,
     phone: normalizedPhone,
+    retainAfterCall: retain,
     customerId: customer.id,
   };
 }
@@ -153,11 +161,13 @@ export function paidSessionView(session) {
     throw err;
   }
   const phone = assertPhone(session.metadata && session.metadata.phone);
+  const retainAfterCall = normalizeRetain(session.metadata && session.metadata.retain_after_call);
   return {
     ok: true,
     plan: plan.id,
     minutes: plan.minutes,
     overage: plan.overage,
+    retainAfterCall,
     phone,
     email: (session.metadata && session.metadata.email) || session.customer_email || null,
     customerId: typeof session.customer === 'string' ? session.customer : session.customer && session.customer.id,

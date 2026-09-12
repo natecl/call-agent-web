@@ -42,6 +42,13 @@
       <input id="account-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="phone-hint">
       <p class="field-hint" id="phone-hint">iMessage number in E.164, like +14155552671.</p>
     </div>
+    <div class="field field-check">
+      <label for="retain-after-call">
+        <input id="retain-after-call" name="retain_after_call" type="checkbox" value="on">
+        Save call audio, transcripts, and history
+      </label>
+      <p class="field-hint" id="retain-hint">Off by default. Login and billing minutes still persist.</p>
+    </div>
     <div class="flow-actions">
       <button class="button primary" type="submit">Continue</button>
     </div>

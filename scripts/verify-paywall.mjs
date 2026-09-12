@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createCheckoutSession, paidSessionView, verifyCheckoutSession } from '../functions/_lib/checkout.js';
 import { assertPhone } from '../functions/_lib/phone.js';
+import { normalizeRetain } from '../functions/_lib/retain.js';
 import { PLANS } from '../functions/_lib/plans.js';
 import { requireTestSecret, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
@@ -16,6 +17,7 @@ import { onRequestPost as webhookPost } from '../functions/api/webhook.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const frozenHome = ['public/index.html', 'public/app.js'];
+const frozenPrivacy = ['public/privacy.html', 'public/privacy/index.html'];
 let failed = 0;
 
 function read(rel) {
@@ -83,6 +85,7 @@ const testEnv = {
 };
 
 ok('home frozen: index.html and app.js', gitDiff(frozenHome).trim() === '', gitDiff(frozenHome).slice(0, 400));
+ok('privacy page claims unchanged', gitDiff(frozenPrivacy).trim() === '', gitDiff(frozenPrivacy).slice(0, 400));
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
@@ -125,8 +128,11 @@ ok('account requires E.164 phone', /id="account-phone"/.test(accountHtml) && /na
 ok('account echoes plan minutes', /data-plan-minutes/.test(accountHtml));
 ok('pay shows phone and minutes', /data-account-phone/.test(pay) && /data-plan-minutes/.test(pay));
 ok('start echoes phone, plan, minutes', /data-account-phone/.test(read('public/start.html')) && /data-plan-minutes/.test(read('public/start.html')));
-ok('client checkout posts phone', /JSON\.stringify\(\{ plan: plan\.id, email, name, phone \}\)/.test(read('public/checkout.js')));
 ok('account phone input is not the SVG #phone symbol', /getElementById\('account-phone'\)/.test(read('public/checkout.js')) && /id="account-phone"/.test(accountHtml));
+ok('client checkout posts phone', /JSON\.stringify\(\{ plan: plan\.id, email, name, phone, retainAfterCall \}\)/.test(read('public/checkout.js')));
+ok('retain checkbox defaults off', /id="retain-after-call"/.test(accountHtml) && !/<input[^>]*id="retain-after-call"[^>]*checked/.test(accountHtml));
+ok('pay echoes retain preference', /data-retain-label/.test(pay));
+ok('start echoes retain preference', /data-retain-label/.test(read('public/start.html')));
 
 ok('Pages Functions: checkout', existsSync(join(root, 'functions/api/checkout.js')));
 ok('Pages Functions: session', existsSync(join(root, 'functions/api/session.js')));
@@ -198,9 +204,12 @@ ok('success lands on /start.html', /\/start\.html\?session_id=\{CHECKOUT_SESSION
 ok('cancel returns to /pay.html with plan', /\/pay\.html\?plan=personal/.test(checkoutForm.get('cancel_url')));
 ok('customer stores E.164 phone', customerForm.get('phone') === TEST_PHONE && customerForm.get('metadata[phone]') === TEST_PHONE);
 ok('customer stores plan and minutes', customerForm.get('metadata[plan]') === 'personal' && customerForm.get('metadata[minutes]') === '30');
+ok('customer retain-after-call defaults off', customerForm.get('metadata[retain_after_call]') === 'off');
 ok('checkout session metadata has phone and minutes', checkoutForm.get('metadata[phone]') === TEST_PHONE && checkoutForm.get('metadata[minutes]') === '30');
 ok('subscription metadata has phone, plan, minutes', checkoutForm.get('subscription_data[metadata][phone]') === TEST_PHONE && checkoutForm.get('subscription_data[metadata][plan]') === 'personal' && checkoutForm.get('subscription_data[metadata][minutes]') === '30');
-ok('checkout response returns plan minutes and phone', created.plan === 'personal' && created.minutes === 30 && created.phone === TEST_PHONE);
+ok('subscription retain-after-call defaults off', checkoutForm.get('subscription_data[metadata][retain_after_call]') === 'off');
+ok('checkout response returns plan minutes and phone', created.plan === 'personal' && created.minutes === 30 && created.phone === TEST_PHONE && created.retainAfterCall === 'off');
+ok('retain junk and missing normalize to off', normalizeRetain(undefined) === 'off' && normalizeRetain('maybe') === 'off' && normalizeRetain(true) === 'on');
 
 const plusMock = mockStripe({
   onCheckout(form) { checkoutForm = form; },
@@ -214,6 +223,20 @@ await createCheckoutSession(testEnv, {
 });
 ok('plus unit amount is 4000', checkoutForm.get('line_items[0][price_data][unit_amount]') === '4000');
 ok('plus minutes allowance is 90', checkoutForm.get('subscription_data[metadata][minutes]') === '90');
+
+const retainOnMock = mockStripe({
+  onCheckout(form) { checkoutForm = form; },
+  onCustomer(form) { customerForm = form; },
+});
+await createCheckoutSession(testEnv, {
+  origin: 'https://usetreena.com',
+  planId: 'personal',
+  email: account.email,
+  phone: account.phone,
+  retainAfterCall: true,
+  fetchImpl: retainOnMock.fetchImpl,
+});
+ok('explicit opt-in stores retain_after_call=on', customerForm.get('metadata[retain_after_call]') === 'on' && checkoutForm.get('subscription_data[metadata][retain_after_call]') === 'on');
 
 const priced = mockStripe({
   onCheckout(form) { checkoutForm = form; },
@@ -268,7 +291,7 @@ const paid = paidSessionView({
   customer: 'cus_test_123',
   subscription: 'sub_test_123',
 });
-ok('paid session unlocks start', paid.ok && paid.plan === 'plus' && paid.minutes === 90 && paid.phone === TEST_PHONE);
+ok('paid session unlocks start', paid.ok && paid.plan === 'plus' && paid.minutes === 90 && paid.phone === TEST_PHONE && paid.retainAfterCall === 'off');
 
 let paidMissingPhone = false;
 try {
@@ -366,7 +389,7 @@ try {
   const req = new Request('https://usetreena.com/api/session?session_id=cs_test_abc');
   const res = await sessionGet({ request: req, env: testEnv });
   const body = await res.json();
-  ok('GET /api/session handler (mocked Stripe)', res.status === 200 && body.ok === true && body.phone === TEST_PHONE && body.minutes === 30);
+  ok('GET /api/session handler (mocked Stripe)', res.status === 200 && body.ok === true && body.phone === TEST_PHONE && body.minutes === 30 && body.retainAfterCall === 'off');
 } finally {
   globalThis.fetch = previousFetch;
 }
@@ -432,9 +455,10 @@ ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.ht
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP records E.164 phone account row', featureMap.includes('| account-phone-e164 |') && /E\.164/.test(featureMap));
 ok('FEATURE_MAP records plan and minutes rows', featureMap.includes('| account-plan |') && featureMap.includes('| account-minutes |'));
+ok('FEATURE_MAP records retain-after-call opt-in', featureMap.includes('| account-retain-opt-in |') && /retain_after_call/.test(featureMap));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
 ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
-ok('FEATURE_MAP privacy locked copy is the live page', /locked copy is the live privacy page/.test(featureMap) && /Builder deploy may follow merge/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
+ok('FEATURE_MAP privacy locked copy is the live page', /this locked copy \*\*is live\*\*/.test(featureMap) && /page copy shipped/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
 ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
 ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
 

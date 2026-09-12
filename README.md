@@ -8,7 +8,7 @@ Landing capability map: [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md).
 
 ## Stripe TEST paywall
 
-Flow: landing → `/pricing` → `/account` (email + E.164 phone) → `/pay` → Stripe Checkout (TEST) → `/start` (Text Treena). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only.
+Flow: landing → `/pricing` → `/account` (email + E.164 phone + retain-after-call opt-in, default off) → `/pay` → Stripe Checkout (TEST) → `/start` (Text Treena). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only. Privacy page copy is TRE-21. Call-agent default-wipe is TRE-23.
 
 The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, and `/api/webhook` hold `STRIPE_SECRET_KEY`.
 

@@ -9,6 +9,7 @@
     email: 'treena-email',
     name: 'treena-name',
     phone: 'treena-phone',
+    retain: 'treena-retain-after-call',
     session: 'treena-session-id',
   };
 
@@ -38,6 +39,21 @@
   function fill(selector, text) {
     document.querySelectorAll(selector).forEach((el) => {
       el.textContent = text;
+    });
+  }
+
+  function retainLabel(value) {
+    return value === 'on'
+      ? 'Save audio, transcripts, history'
+      : 'Don’t save';
+  }
+
+  function showRetain(value) {
+    fill('[data-retain-label]', value === 'on'
+      ? 'Save audio, transcripts, history'
+      : 'Don’t save audio, transcripts, or history');
+    document.querySelectorAll('.pay-row [data-retain-label]').forEach((el) => {
+      el.textContent = retainLabel(value);
     });
   }
 
@@ -120,6 +136,9 @@
     }
     fill('[data-account-email]', email);
     fill('[data-account-phone]', phone);
+    let retain = 'off';
+    try { retain = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off'; } catch (_) {}
+    showRetain(retain);
   }
 
   if (page === 'start') {
@@ -139,11 +158,13 @@
         if (paidPlan) showPlan(paidPlan);
         if (result.email) fill('[data-account-email]', result.email);
         if (result.phone) fill('[data-account-phone]', result.phone);
+        showRetain(result.retainAfterCall === 'on' ? 'on' : 'off');
         try {
           sessionStorage.setItem(KEY.session, result.sessionId || sessionId);
           if (result.plan) sessionStorage.setItem(KEY.plan, result.plan);
           if (result.email) sessionStorage.setItem(KEY.email, result.email);
           if (result.phone) sessionStorage.setItem(KEY.phone, result.phone);
+          sessionStorage.setItem(KEY.retain, result.retainAfterCall === 'on' ? 'on' : 'off');
         } catch (_) {}
         setHidden('start-pending', true);
         setHidden('start-ready', false);
@@ -159,10 +180,12 @@
     const nameInput = document.getElementById('name');
     const emailInput = document.getElementById('email');
     const phoneInput = document.getElementById('account-phone');
+    const retainInput = document.getElementById('retain-after-call');
     try {
       if (nameInput) nameInput.value = sessionStorage.getItem(KEY.name) || '';
       if (emailInput) emailInput.value = sessionStorage.getItem(KEY.email) || '';
       if (phoneInput) phoneInput.value = sessionStorage.getItem(KEY.phone) || '';
+      if (retainInput) retainInput.checked = sessionStorage.getItem(KEY.retain) === 'on';
     } catch (_) {}
     if (phoneInput) {
       phoneInput.addEventListener('input', () => phoneInput.setCustomValidity(''));
@@ -176,10 +199,12 @@
       if (!form.reportValidity()) return;
       const email = emailInput.value.trim();
       const name = nameInput ? nameInput.value.trim() : '';
+      const retainAfterCall = retainInput && retainInput.checked ? 'on' : 'off';
       try {
         sessionStorage.setItem(KEY.email, email);
         sessionStorage.setItem(KEY.phone, phone);
         sessionStorage.setItem(KEY.plan, plan.id);
+        sessionStorage.setItem(KEY.retain, retainAfterCall);
         if (name) sessionStorage.setItem(KEY.name, name);
         else sessionStorage.removeItem(KEY.name);
         sessionStorage.removeItem(KEY.session);
@@ -197,10 +222,12 @@
       let email = '';
       let name = '';
       let phone = '';
+      let retainAfterCall = 'off';
       try {
         email = sessionStorage.getItem(KEY.email) || '';
         name = sessionStorage.getItem(KEY.name) || '';
         phone = sessionStorage.getItem(KEY.phone) || '';
+        retainAfterCall = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off';
       } catch (_) {}
       if (!email || !phone) {
         location.replace(href('account.html', plan.id));
@@ -214,7 +241,7 @@
         const result = await api('/api/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ plan: plan.id, email, name, phone }),
+          body: JSON.stringify({ plan: plan.id, email, name, phone, retainAfterCall }),
         });
         if (!result.url) throw new Error('Checkout URL missing');
         location.href = result.url;
