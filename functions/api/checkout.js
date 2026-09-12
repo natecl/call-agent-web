@@ -9,6 +9,7 @@ export async function onRequestPost(context) {
       planId: body.plan,
       email: body.email,
       name: body.name,
+      phone: body.phone,
     });
     return json(result);
   } catch (error) {

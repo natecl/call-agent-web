@@ -1,4 +1,4 @@
-// Stripe TEST checkout. Account email is captured here; the secret stays on Pages Functions.
+// Stripe TEST checkout. Email + E.164 phone are captured here; the secret stays on Pages Functions.
 (function () {
   const PLANS = {
     personal: { id: 'personal', name: 'Personal', price: 20, minutes: 30, overage: '0.15' },
@@ -8,6 +8,7 @@
     plan: 'treena-plan',
     email: 'treena-email',
     name: 'treena-name',
+    phone: 'treena-phone',
     session: 'treena-session-id',
   };
 
@@ -65,6 +66,23 @@
     el.textContent = message;
   }
 
+  function normalizeE164(input) {
+    const raw = String(input || '').trim();
+    if (!raw) return '';
+    let compact = raw.replace(/[^\d+]/g, '');
+    if (compact.startsWith('00')) compact = `+${compact.slice(2)}`;
+    if (!compact.startsWith('+')) {
+      const digits = compact.replace(/\D/g, '');
+      if (digits.length === 10) compact = `+1${digits}`;
+      else if (digits.length === 11 && digits.startsWith('1')) compact = `+${digits}`;
+      else return '';
+    } else {
+      compact = `+${compact.slice(1).replace(/\D/g, '')}`;
+    }
+    if (!/^\+[1-9]\d{7,14}$/.test(compact)) return '';
+    return compact;
+  }
+
   async function api(path, options) {
     const res = await fetch(path, options);
     let data = {};
@@ -91,12 +109,17 @@
 
   if (page === 'pay') {
     let email = null;
-    try { email = sessionStorage.getItem(KEY.email); } catch (_) {}
-    if (!email) {
+    let phone = null;
+    try {
+      email = sessionStorage.getItem(KEY.email);
+      phone = sessionStorage.getItem(KEY.phone);
+    } catch (_) {}
+    if (!email || !phone) {
       location.replace(href('account.html', plan.id));
       return;
     }
     fill('[data-account-email]', email);
+    fill('[data-account-phone]', phone);
   }
 
   if (page === 'start') {
@@ -115,10 +138,12 @@
         const paidPlan = PLANS[result.plan] || plan;
         if (paidPlan) showPlan(paidPlan);
         if (result.email) fill('[data-account-email]', result.email);
+        if (result.phone) fill('[data-account-phone]', result.phone);
         try {
           sessionStorage.setItem(KEY.session, result.sessionId || sessionId);
           if (result.plan) sessionStorage.setItem(KEY.plan, result.plan);
           if (result.email) sessionStorage.setItem(KEY.email, result.email);
+          if (result.phone) sessionStorage.setItem(KEY.phone, result.phone);
         } catch (_) {}
         setHidden('start-pending', true);
         setHidden('start-ready', false);
@@ -133,17 +158,27 @@
   if (form && plan) {
     const nameInput = document.getElementById('name');
     const emailInput = document.getElementById('email');
+    const phoneInput = document.getElementById('phone');
     try {
       if (nameInput) nameInput.value = sessionStorage.getItem(KEY.name) || '';
       if (emailInput) emailInput.value = sessionStorage.getItem(KEY.email) || '';
+      if (phoneInput) phoneInput.value = sessionStorage.getItem(KEY.phone) || '';
     } catch (_) {}
+    if (phoneInput) {
+      phoneInput.addEventListener('input', () => phoneInput.setCustomValidity(''));
+    }
     form.addEventListener('submit', (event) => {
       event.preventDefault();
+      const phone = phoneInput ? normalizeE164(phoneInput.value) : '';
+      if (phoneInput) {
+        phoneInput.setCustomValidity(phone ? '' : 'Use an E.164 phone number, like +14155552671');
+      }
       if (!form.reportValidity()) return;
       const email = emailInput.value.trim();
       const name = nameInput ? nameInput.value.trim() : '';
       try {
         sessionStorage.setItem(KEY.email, email);
+        sessionStorage.setItem(KEY.phone, phone);
         sessionStorage.setItem(KEY.plan, plan.id);
         if (name) sessionStorage.setItem(KEY.name, name);
         else sessionStorage.removeItem(KEY.name);
@@ -161,11 +196,13 @@
       showError('pay-error', '');
       let email = '';
       let name = '';
+      let phone = '';
       try {
         email = sessionStorage.getItem(KEY.email) || '';
         name = sessionStorage.getItem(KEY.name) || '';
+        phone = sessionStorage.getItem(KEY.phone) || '';
       } catch (_) {}
-      if (!email) {
+      if (!email || !phone) {
         location.replace(href('account.html', plan.id));
         return;
       }
@@ -177,7 +214,7 @@
         const result = await api('/api/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ plan: plan.id, email, name }),
+          body: JSON.stringify({ plan: plan.id, email, name, phone }),
         });
         if (!result.url) throw new Error('Checkout URL missing');
         location.href = result.url;

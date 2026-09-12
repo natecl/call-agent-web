@@ -1,4 +1,5 @@
 import { getPlan } from './plans.js';
+import { assertPhone } from './phone.js';
 import { encodeForm, stripeRequest } from './stripe.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,24 +14,38 @@ export function assertEmail(email) {
   return value;
 }
 
-export async function findOrCreateCustomer(env, { email, name, planId, fetchImpl }) {
+function customerFields({ email, name, phone, plan }) {
+  return {
+    email,
+    name: name || undefined,
+    phone,
+    'metadata[plan]': plan.id,
+    'metadata[phone]': phone,
+    'metadata[minutes]': String(plan.minutes),
+    'metadata[source]': 'usetreena-pages-test',
+  };
+}
+
+export async function findOrCreateCustomer(env, { email, name, phone, plan, fetchImpl }) {
   const listed = await stripeRequest(env, {
     method: 'GET',
     path: `customers?email=${encodeURIComponent(email)}&limit=1`,
     fetchImpl,
   });
   const existing = listed.data && listed.data[0];
-  if (existing && existing.id) return existing;
-  const form = encodeForm({
-    email,
-    name: name || undefined,
-    'metadata[plan]': planId,
-    'metadata[source]': 'usetreena-pages-test',
-  });
+  const form = encodeForm(customerFields({ email, name, phone, plan }));
+  if (existing && existing.id) {
+    return stripeRequest(env, {
+      method: 'POST',
+      path: `customers/${encodeURIComponent(existing.id)}`,
+      form,
+      fetchImpl,
+    });
+  }
   return stripeRequest(env, { method: 'POST', path: 'customers', form, fetchImpl });
 }
 
-export function checkoutForm({ origin, plan, email, name, customerId, priceId }) {
+export function checkoutForm({ origin, plan, email, name, phone, customerId, priceId }) {
   const successUrl = `${origin}/start.html?session_id={CHECKOUT_SESSION_ID}&plan=${encodeURIComponent(plan.id)}`;
   const cancelUrl = `${origin}/pay.html?plan=${encodeURIComponent(plan.id)}`;
   const fields = {
@@ -44,10 +59,13 @@ export function checkoutForm({ origin, plan, email, name, customerId, priceId })
     'metadata[plan]': plan.id,
     'metadata[email]': email,
     'metadata[name]': name || undefined,
+    'metadata[phone]': phone,
+    'metadata[minutes]': String(plan.minutes),
     'subscription_data[metadata][plan]': plan.id,
     'subscription_data[metadata][minutes]': String(plan.minutes),
     'subscription_data[metadata][overage]': plan.overage,
     'subscription_data[metadata][email]': email,
+    'subscription_data[metadata][phone]': phone,
   };
   if (priceId) {
     fields['line_items[0][price]'] = priceId;
@@ -61,7 +79,7 @@ export function checkoutForm({ origin, plan, email, name, customerId, priceId })
   return encodeForm(fields);
 }
 
-export async function createCheckoutSession(env, { origin, planId, email, name, fetchImpl }) {
+export async function createCheckoutSession(env, { origin, planId, email, name, phone, fetchImpl }) {
   const plan = getPlan(planId);
   if (!plan) {
     const err = new Error('Choose Personal or Plus');
@@ -69,11 +87,13 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     throw err;
   }
   const normalizedEmail = assertEmail(email);
+  const normalizedPhone = assertPhone(phone);
   const trimmedName = String(name || '').trim();
   const customer = await findOrCreateCustomer(env, {
     email: normalizedEmail,
     name: trimmedName,
-    planId: plan.id,
+    phone: normalizedPhone,
+    plan,
     fetchImpl,
   });
   const priceId = env[plan.priceEnv] || '';
@@ -82,6 +102,7 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     plan,
     email: normalizedEmail,
     name: trimmedName,
+    phone: normalizedPhone,
     customerId: customer.id,
     priceId,
   });
@@ -105,6 +126,8 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     id: session.id,
     url: session.url,
     plan: plan.id,
+    minutes: plan.minutes,
+    phone: normalizedPhone,
     customerId: customer.id,
   };
 }
@@ -129,9 +152,13 @@ export function paidSessionView(session) {
     err.status = 400;
     throw err;
   }
+  const phone = assertPhone(session.metadata && session.metadata.phone);
   return {
     ok: true,
     plan: plan.id,
+    minutes: plan.minutes,
+    overage: plan.overage,
+    phone,
     email: (session.metadata && session.metadata.email) || session.customer_email || null,
     customerId: typeof session.customer === 'string' ? session.customer : session.customer && session.customer.id,
     subscriptionId: typeof session.subscription === 'string'

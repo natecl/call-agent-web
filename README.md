@@ -8,7 +8,7 @@ Landing capability map: [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md).
 
 ## Stripe TEST paywall
 
-Flow: landing → `/pricing` → `/account` → `/pay` → Stripe Checkout (TEST) → `/start` (Text Treena). No trial. Plans are Personal $20/mo and Plus $40/mo only.
+Flow: landing → `/pricing` → `/account` (email + E.164 phone) → `/pay` → Stripe Checkout (TEST) → `/start` (Text Treena). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only.
 
 The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, and `/api/webhook` hold `STRIPE_SECRET_KEY`.
 

@@ -8,7 +8,7 @@
   <title>Account — Treena</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
   <link rel="preload" href="../assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="../style.css?v=20260912-paytest">
+  <link rel="stylesheet" href="../style.css?v=20260912-accounts">
 </head>
 <body data-page="account" data-base="..">
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -27,7 +27,7 @@
 </header>
 <main id="main" class="page-main page-flow">
   <h1>Create your account</h1>
-  <p class="page-lead">Then confirm <span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo.</p>
+  <p class="page-lead">Then confirm <span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min.</p>
   <form id="account-form" action="../pay.html" method="get">
     <div class="field">
       <label for="name">Name <span class="optional">optional</span></label>
@@ -37,12 +37,17 @@
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="email" required>
     </div>
+    <div class="field">
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="phone-hint">
+      <p class="field-hint" id="phone-hint">iMessage number in E.164, like +14155552671.</p>
+    </div>
     <div class="flow-actions">
       <button class="button primary" type="submit">Continue</button>
     </div>
   </form>
   <a class="change-plan" href="../pricing.html">Change plan</a>
-  <p class="stub-note">No password. Your email is the account.</p>
+  <p class="stub-note">No password. Email + phone are the account. No trial.</p>
 </main>
 <footer>
   <a class="brand" href="../index.html">Treena</a>
