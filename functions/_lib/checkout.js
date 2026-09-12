@@ -2,6 +2,7 @@ import { getPlan } from './plans.js';
 import { assertPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
 import { encodeForm, stripeRequest } from './stripe.js';
+import { payloadFromStripeCustomer, postAccountSync } from './sync.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,6 +46,72 @@ export async function findOrCreateCustomer(env, { email, name, phone, plan, reta
     });
   }
   return stripeRequest(env, { method: 'POST', path: 'customers', form, fetchImpl });
+}
+
+export async function saveAccountSettings(env, { email, name, phone, planId, retainAfterCall, fetchImpl }) {
+  const plan = getPlan(planId);
+  if (!plan) {
+    const err = new Error('Choose Personal or Plus');
+    err.status = 400;
+    throw err;
+  }
+  const normalizedEmail = assertEmail(email);
+  const normalizedPhone = assertPhone(phone);
+  const retain = normalizeRetain(retainAfterCall);
+  const trimmedName = String(name || '').trim();
+  const listed = await stripeRequest(env, {
+    method: 'GET',
+    path: `customers?email=${encodeURIComponent(normalizedEmail)}&limit=1`,
+    fetchImpl,
+  });
+  const existing = listed.data && listed.data[0];
+  if (!existing || !existing.id) {
+    const err = new Error('No Stripe TEST account for this email');
+    err.status = 404;
+    throw err;
+  }
+  const customer = await stripeRequest(env, {
+    method: 'POST',
+    path: `customers/${encodeURIComponent(existing.id)}`,
+    form: encodeForm(customerFields({
+      email: normalizedEmail,
+      name: trimmedName,
+      phone: normalizedPhone,
+      plan,
+      retainAfterCall: retain,
+    })),
+    fetchImpl,
+  });
+  const merged = {
+    ...existing,
+    ...customer,
+    id: customer.id || existing.id,
+    name: trimmedName || customer.name || existing.name || '',
+    phone: normalizedPhone,
+    metadata: {
+      ...(existing.metadata || {}),
+      ...(customer.metadata || {}),
+      plan: plan.id,
+      phone: normalizedPhone,
+      minutes: String(plan.minutes),
+      retain_after_call: retain,
+    },
+  };
+  const sync = await postAccountSync(
+    env,
+    payloadFromStripeCustomer(merged, { eventCreated: Date.now() / 1000 }),
+    fetchImpl,
+    { required: true },
+  );
+  return {
+    ok: true,
+    customerId: merged.id,
+    plan: plan.id,
+    minutes: plan.minutes,
+    phone: normalizedPhone,
+    retainAfterCall: retain,
+    sync,
+  };
 }
 
 export function checkoutForm({ origin, plan, email, name, phone, retainAfterCall, customerId, priceId }) {
