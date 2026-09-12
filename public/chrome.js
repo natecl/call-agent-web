@@ -15,5 +15,5 @@ dialog.addEventListener('click', (e) => {
 });
 document.getElementById('dialog-demo').addEventListener('click', () => {
   dialog.close();
-  location.href = 'index.html#how-it-works';
+  location.href = new URL('index.html#how-it-works', document.querySelector('.brand').href).href;
 });

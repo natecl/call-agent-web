@@ -1,0 +1,38 @@
+/* Native same-origin navigation transitions; regular navigation remains the fallback. */
+@view-transition { navigation: auto; }
+@media(prefers-reduced-motion:no-preference){
+ ::view-transition-old(root){animation:page-away 180ms ease both}
+ ::view-transition-new(root){animation:page-arrive 420ms cubic-bezier(.22,1,.36,1) both}
+ @keyframes page-away{to{opacity:0;transform:translateY(-8px)}}
+ @keyframes page-arrive{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+ .subpage main{animation:content-arrive 650ms cubic-bezier(.22,1,.36,1) both}
+ @keyframes content-arrive{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+ .subpage .reveal-waiting{opacity:0;transform:translateY(24px)}
+ .subpage .reveal-visible{animation:content-arrive 750ms cubic-bezier(.22,1,.36,1) both;animation-delay:var(--reveal-delay,0ms)}
+ .subpage .button span[aria-hidden],.inline-link span{transition:transform 260ms cubic-bezier(.22,1,.36,1)}
+ .subpage .button:hover span[aria-hidden]{transform:translateX(3px)}
+ .subpage .plan-card{transition:border-color 300ms ease,box-shadow 300ms ease}
+ .subpage .plan-card:hover{border-color:#a3c8f5;box-shadow:0 16px 40px #16375b0c}
+ .subpage .inline-link,.privacy-aside nav a{transition:color 220ms ease,background 220ms ease}
+ .subpage .inline-link:hover{color:#004ba8}
+}
+@media(prefers-reduced-motion:reduce){
+ @view-transition{navigation:none}
+ ::view-transition-group(*){animation:none!important}
+ .subpage main,.subpage .reveal-waiting,.subpage .reveal-visible{opacity:1;transform:none;animation:none}
+ .subpage .button,.subpage .plan-card,.subpage .button span{transition:none!important;animation:none!important}
+ html{scroll-behavior:auto}
+}
+
+/* Staggered entrances and compact panel motion inspired by the supplied references. */
+@media(prefers-reduced-motion:no-preference){
+ .subpage .page-pricing .plan-card:not(.reveal-waiting):not(.reveal-visible){animation:content-arrive 650ms cubic-bezier(.22,1,.36,1) backwards}
+ .subpage .page-pricing .plan-card:nth-child(2){animation-delay:80ms}
+ .subpage .faq-list details[open] p{animation:faq-arrive 260ms cubic-bezier(.22,1,.36,1)}
+ @keyframes faq-arrive{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+ @supports (interpolate-size:allow-keywords){
+  .subpage .faq-list details{interpolate-size:allow-keywords}
+  .subpage .faq-list details::details-content{block-size:0;overflow:clip;transition:block-size 280ms cubic-bezier(.22,1,.36,1),content-visibility 280ms allow-discrete}
+  .subpage .faq-list details[open]::details-content{block-size:auto}
+ }
+}
