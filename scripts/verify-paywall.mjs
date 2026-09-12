@@ -311,10 +311,26 @@ const badWebhook = await webhookPost({
 });
 ok('webhook rejects bad signature', badWebhook.status === 400);
 
+const privacy = read('public/privacy.html') + read('public/privacy/index.html');
+ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
+ok('privacy locked body: opt-in store list', /call audio, transcripts, call history, and extra profile data/.test(privacy));
+ok('privacy locked body: Telnyx; OpenAI pass-through', /Telnyx; OpenAI/.test(privacy) && /When you haven’t opted in, we don’t keep it/.test(privacy));
+ok('privacy locked body: choose what to keep', /audio, transcript, and\/or history/.test(privacy));
+ok('privacy locked body: first name not product name', /on behalf of your first name/.test(privacy) && /Treena doesn’t say the product name/.test(privacy));
+ok('privacy locked body: not Signal-private or E2E', /We’re not Signal-private or end-to-end encrypted/.test(privacy));
+ok('privacy contact mailto', /mailto:privacy@usetreena.com/.test(privacy));
+ok('privacy quieter billing line is not the lead', /<p class="stub-note">We keep account login and minute totals for billing\.<\/p>/.test(privacy));
+ok('privacy removed Ring five-claim blocks', !/Outbound calls/.test(privacy) && !/debugging\/quality/.test(privacy) && !/AI assistant/.test(privacy) && !/does not sell call content/.test(privacy) && !/\bDID\b/.test(privacy));
+ok('privacy no HIPAA / she-her product', !/HIPAA/i.test(privacy) && !/\b(she|her|hers)\b/i.test(privacy));
+ok('privacy chrome still Text Treena', /Text Treena/.test(privacy) && /class="page-main"/.test(privacy));
+ok('privacy directory index points How it works at home', /href="\.\.\/index\.html#how-it-works"/.test(read('public/privacy/index.html')));
+
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
+ok('FEATURE_MAP privacy locked copy not live-shipped', /not live-shipped/.test(featureMap) && /default-no-store/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
+ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
 if (!secret) {
