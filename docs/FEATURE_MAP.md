@@ -6,7 +6,7 @@ This file maps the public landing as a product surface. It is not an implementat
 
 Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
 
-TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription.
+TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription. Fly `users` is the runtime account kickoff reads. This website POSTs signed TRE-20 Customer JSON to Fly `POST /accounts/sync`; it does not write Neon. Do not claim that writer live. Pages deploy held.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
@@ -24,9 +24,9 @@ Locked plans only:
 
 No trial. No free forever. No annual/team/enterprise.
 
-Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`).
+Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`, `POST /api/account`. On `checkout.session.completed`, `customer.updated`, subscription updated/deleted, and account-settings save, Pages Functions HMAC-POST signed JSON to Fly `POST /accounts/sync` (`ACCOUNT_SYNC_SECRET`). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). Do not claim live. Pages deploy is held.
 
-Out of scope: live Stripe, KYC, OAuth/provider sign-in, magic-link auth backend, Fly / call-agent FastAPI, Linq live messaging. Account form collects password UI-only until auth backend ships.
+Out of scope: live Stripe, KYC, OAuth/provider sign-in, magic-link auth backend, Fly deploy / live Machines, Linq live messaging. Account form collects password UI-only until auth backend ships. Name is not on signup — it lives on the users row / account settings. Neon writes from this website are out of scope.
 
 ## Privacy
 
@@ -128,6 +128,7 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | cta-coming-soon-dialog | cta-integration | A visitor sees a coming-soon dialog when the message URL is empty. | Empty `RELAY_MESSAGE_URL` opens a coming-soon dialog. | `public/index.html` has `#contact-dialog`. Copy is "Treena’s number is coming soon." | The live page has the same dialog. | shipped | measured. `relay-agent-handoff.md` names that dialog. Live HTML contains that copy. |
 | cta-no-phone-numbers | cta-integration | The landing does not present a product phone number. | `relay-agent-handoff.md` records that phone numbers must not be invented. | `public/index.html` has no product phone number. The dialog says the number is coming soon. | The live landing has the same absence. | shipped | measured. `relay-agent-handoff.md` records that phone numbers must not be invented. Live HTML has none. |
 | cta-no-backend | cta-integration | A visitor cannot sign up, start a call, or reach a calling backend from this landing. | `relay-agent-handoff.md` states that the landing has no backend, signup, or calling. | Home has no signup form and no calling API. Text Treena opens the coming-soon dialog. Stripe TEST checkout is other routes (TRE-17). | The live home has the same absence. | shipped | measured. Live home HTML has no signup form and no calling wiring. |
+| account-fly-sync | account | Website POSTs signed TRE-20 account JSON to Fly `POST /accounts/sync`. Fly is the sole writer of `users`. Web does not write Neon. | Nathan lock sync B. call-agent `docs/accounts.md`. | `functions/_lib/sync.js` HMAC `ACCOUNT_SYNC_SECRET` (`X-Account-Sync-Signature: sha256=<hex>`). URL is `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL/accounts/sync`. Map: Customer `phone` → `phone`; optional `name` → `first_name` (first token) + `prefs.full_name` (signup does not collect name); `id` → `stripe_customer_id`; `metadata[plan]` → `plan`; `metadata[minutes]` → `minutes_included`; `retain_after_call=on` → `retain_call_artifacts`; `minutes_used` is 0. Triggers: `checkout.session.completed`, `customer.updated`, `customer.subscription.updated` / `deleted`, `POST /api/account` (Stripe first, then Fly). Retry 5xx. | Do not claim live. Pages deploy held. | sot-ready | measured. `npm run verify` / `verify-paywall` TEST path. In this tree, not on the live Pages host. No Neon. |
 | visual-system | visual-system | The SoT landing uses a white canvas, bold black Inter headings, blue filled CTAs, a pearl-gray demo stage, cartoonish illustrations, handwritten notes, vector ink arrows, a handset, a cord, and restrained pastels. | The frame has a yellow underline and a peach word highlight. First-session handoff names the typeface Inter and the direction useful, simple, warm, and polished. `relay-agent-handoff.md` names cartoonish illustrations, handwritten notes, and vector ink arrows, a handset, and a cord. The white answer and caption bubble is approved. | `public/style.css` sets `body` background `#fff` and Inter. `public/assets/` has illustration PNGs and `InterVariable.woff2`. | The live host is that light landing, not a dark placeholder. | shipped | measured. Live CSS is white canvas. First-session handoff names Inter. Home visual restyle remains HOLD. |
 | sot-overall-page-frame | sot-assets | The approved overall-page frame is the composition source for this map. | The attached file is `09-illustrated-use-cases.png`. The PNG is not in git. | absent | absent | sot-ready | measured. The parent task attached the PNG. The workspace file list has no SoT image. |
 | sot-handoff-md | sot-assets | `relay-agent-handoff.md` is a source for this map. | That file is measured handoff text from the parent task. It is not in this git tree. | absent | absent | sot-ready | measured. The parent task named that file. A workspace listing has no copy of it. |
@@ -313,9 +314,9 @@ These items are outside this map.
 
 - Pixel rebuild
 - Live Stripe (`sk_live_`) / KYC / real charges
-- Fly / call-agent FastAPI / Linq live messaging
+- Fly deploy / live Machines / Linq live messaging
 - Cloudflare Git wiring
-- Neon
+- Neon (website must not open `NEON_DATABASE_URL`; Fly is the sole writer of `users`)
 - R2
-- Workers other than Pages Functions for Stripe TEST checkout
-- The product calling stack in `natecl/call-agent`
+- Workers other than Pages Functions for Stripe TEST checkout and signed account sync
+- The product calling stack in `natecl/call-agent` (this repo POSTs `/accounts/sync`; it does not run Fly)

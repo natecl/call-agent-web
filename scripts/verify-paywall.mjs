@@ -5,10 +5,21 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createCheckoutSession, paidSessionView, verifyCheckoutSession } from '../functions/_lib/checkout.js';
+import { createCheckoutSession, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
 import { PLANS } from '../functions/_lib/plans.js';
 import { requireTestSecret, verifyStripeWebhook } from '../functions/_lib/stripe.js';
+import {
+  ACCOUNT_SYNC_SIGNATURE_HEADER,
+  DEFAULT_SYNC_URL,
+  accountSyncUrl,
+  firstNameFrom,
+  payloadFromStripeCustomer,
+  postAccountSync,
+  signAccountSync,
+  syncFromStripeEvent,
+} from '../functions/_lib/sync.js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
+import { onRequestPost as accountPost } from '../functions/api/account.js';
 import { onRequestGet as sessionGet } from '../functions/api/session.js';
 import { onRequestGet as configGet } from '../functions/api/config.js';
 import { onRequestPost as webhookPost } from '../functions/api/webhook.js';
@@ -45,13 +56,59 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-function mockStripe({ customers = [], session, onCheckout } = {}) {
+function customerFromForm(form, id = 'cus_test_123') {
+  return {
+    id,
+    email: form.get('email') || 'tester@example.com',
+    name: form.get('name') || null,
+    phone: form.get('phone'),
+    metadata: {
+      plan: form.get('metadata[plan]'),
+      phone: form.get('metadata[phone]'),
+      minutes: form.get('metadata[minutes]'),
+      retain_after_call: form.get('metadata[retain_after_call]'),
+    },
+  };
+}
+
+function mockStripe({ customers = [], session, onCheckout, onCustomer, onFly, flyStatus = 200, flyFailTimes = 0 } = {}) {
   const calls = [];
+  let flyAttempts = 0;
   const fetchImpl = async (url, init = {}) => {
-    calls.push({ url, method: init.method || 'GET', body: init.body || '' });
+    calls.push({ url, method: init.method || 'GET', body: init.body || '', headers: init.headers || {} });
+    if (String(url).includes('/accounts/sync')) {
+      flyAttempts += 1;
+      if (onFly) onFly({ url, method: init.method || 'POST', headers: init.headers || {}, body: String(init.body || '') });
+      const status = flyAttempts <= flyFailTimes ? 503 : flyStatus;
+      if (status >= 500) return jsonResponse({ error: 'fly down' }, status);
+      if (status === 409) return jsonResponse({ error: 'phone already belongs to another account' }, 409);
+      return jsonResponse({ ok: true, user_id: 'acctnathan', skipped: false, created: true });
+    }
     if (url.includes('/v1/customers?email=')) return jsonResponse({ data: customers });
+    if (url.includes('/v1/customers/') && init.method === 'POST') {
+      const form = new URLSearchParams(String(init.body || ''));
+      if (onCustomer) onCustomer(form, 'update');
+      const existing = customers[0] && customers[0].id ? customers[0].id : 'cus_test_123';
+      return jsonResponse(customerFromForm(form, existing));
+    }
+    if (url.includes('/v1/customers/') && (init.method || 'GET') === 'GET') {
+      const existing = customers[0] || {
+        id: 'cus_test_123',
+        name: 'Nathan Tester',
+        phone: '+14155552671',
+        metadata: {
+          plan: 'personal',
+          phone: '+14155552671',
+          minutes: '30',
+          retain_after_call: 'off',
+        },
+      };
+      return jsonResponse(existing);
+    }
     if (url.endsWith('/v1/customers') && init.method === 'POST') {
-      return jsonResponse({ id: 'cus_test_123', email: 'tester@example.com' });
+      const form = new URLSearchParams(String(init.body || ''));
+      if (onCustomer) onCustomer(form, 'create');
+      return jsonResponse(customerFromForm(form));
     }
     if (url.endsWith('/v1/checkout/sessions') && init.method === 'POST') {
       const form = new URLSearchParams(String(init.body || ''));
@@ -331,6 +388,213 @@ const badWebhook = await webhookPost({
 });
 ok('webhook rejects bad signature', badWebhook.status === 400);
 
+ok('Pages Functions: account settings save', existsSync(join(root, 'functions/api/account.js')));
+ok('sync helper is private (_lib)', existsSync(join(root, 'functions/_lib/sync.js')));
+const functionsBlob = [
+  'functions/_lib/sync.js',
+  'functions/_lib/checkout.js',
+  'functions/_lib/stripe.js',
+  'functions/api/webhook.js',
+  'functions/api/account.js',
+  'functions/api/checkout.js',
+].map(read).join('\n');
+ok('website never opens NEON_DATABASE_URL', !/NEON_DATABASE_URL/.test(functionsBlob));
+ok('account sync URL defaults to Fly origin', accountSyncUrl({}) === DEFAULT_SYNC_URL);
+ok('CALL_AGENT_SYNC_URL wins over PUBLIC_BASE_URL', accountSyncUrl({
+  CALL_AGENT_SYNC_URL: 'https://example.test/accounts/sync',
+  PUBLIC_BASE_URL: 'https://hidden-beacon-080.fly.dev',
+}) === 'https://example.test/accounts/sync');
+ok('PUBLIC_BASE_URL builds /accounts/sync', accountSyncUrl({
+  PUBLIC_BASE_URL: 'https://hidden-beacon-080.fly.dev/',
+}) === 'https://hidden-beacon-080.fly.dev/accounts/sync');
+ok('first name is the first token', firstNameFrom('Nathan Tester') === 'Nathan' && firstNameFrom('') === null);
+
+const TEST_PHONE = '+14155552671';
+
+const tre20Customer = {
+  id: 'cus_test_123',
+  name: 'Nathan Tester',
+  phone: TEST_PHONE,
+  metadata: {
+    plan: 'personal',
+    phone: TEST_PHONE,
+    minutes: '30',
+    retain_after_call: 'off',
+  },
+};
+const mapped = payloadFromStripeCustomer(tre20Customer, { eventCreated: 1789200000 });
+ok('TRE-20 map: phone, plan, minutes, retain, stripe id', mapped.phone === TEST_PHONE
+  && mapped.plan === 'personal'
+  && mapped.minutes_included === 30
+  && mapped.minutes_used === 0
+  && mapped.retain_call_artifacts === false
+  && mapped.stripe_customer_id === 'cus_test_123');
+ok('TRE-20 map: first_name + prefs.full_name', mapped.first_name === 'Nathan' && mapped.prefs.full_name === 'Nathan Tester');
+ok('TRE-20 map: stripe_event_created is ISO-8601', /^\d{4}-\d{2}-\d{2}T/.test(mapped.stripe_event_created));
+ok('TRE-20 map does not invent user_id', !('user_id' in mapped));
+
+const syncSecret = 'sync-secret';
+const signedBody = JSON.stringify({ phone: TEST_PHONE });
+const nodeSig = `sha256=${createHmac('sha256', syncSecret).update(signedBody).digest('hex')}`;
+const webSig = await signAccountSync(syncSecret, signedBody);
+ok('HMAC matches Fly sha256= hex of raw body', webSig === nodeSig && webSig.startsWith('sha256='));
+
+const syncEnv = { ...testEnv, ACCOUNT_SYNC_SECRET: syncSecret };
+let flyPost;
+const flyMock = mockStripe({
+  onFly(post) { flyPost = post; },
+});
+const posted = await postAccountSync(syncEnv, mapped, flyMock.fetchImpl, { required: true });
+ok('POST /accounts/sync returns Fly upsert', posted.ok === true && posted.user_id === 'acctnathan');
+ok('POST uses Fly origin and JSON content-type', flyPost.url === DEFAULT_SYNC_URL && /application\/json/i.test(flyPost.headers['content-type']));
+ok('POST signs the raw body', flyPost.headers[ACCOUNT_SYNC_SIGNATURE_HEADER] === await signAccountSync(syncSecret, flyPost.body));
+const sent = JSON.parse(flyPost.body);
+ok('POST body is TRE-20 mapped JSON', sent.phone === TEST_PHONE && sent.first_name === 'Nathan' && sent.plan === 'personal');
+
+const skipNoSecret = await postAccountSync(testEnv, mapped, flyMock.fetchImpl);
+ok('missing ACCOUNT_SYNC_SECRET skips (webhook path)', skipNoSecret.skipped === true);
+
+let requiredSecret = false;
+try {
+  await postAccountSync(testEnv, mapped, flyMock.fetchImpl, { required: true });
+} catch (error) {
+  requiredSecret = error.status === 503;
+}
+ok('settings save without secret is 503', requiredSecret);
+
+let flyTries = 0;
+const retryMock = mockStripe({
+  flyFailTimes: 2,
+  onFly() { flyTries += 1; },
+});
+const retried = await postAccountSync(syncEnv, mapped, retryMock.fetchImpl, { required: true });
+ok('retries Fly 5xx then succeeds', retried.ok === true && flyTries === 3);
+
+const checkoutEvent = {
+  type: 'checkout.session.completed',
+  created: 1789200000,
+  data: {
+    object: {
+      customer: 'cus_test_123',
+      metadata: { plan: 'personal', phone: TEST_PHONE, minutes: '30', retain_after_call: 'off', name: 'Nathan Tester' },
+      client_reference_id: 'personal',
+    },
+  },
+};
+let checkoutFly;
+const checkoutSyncMock = mockStripe({
+  onFly(post) { checkoutFly = post; },
+});
+const checkoutSync = await syncFromStripeEvent(syncEnv, checkoutEvent, checkoutSyncMock.fetchImpl);
+ok('checkout.session.completed POSTs Fly', checkoutSync.ok === true && JSON.parse(checkoutFly.body).stripe_customer_id === 'cus_test_123');
+
+let updatedFly;
+const updatedSync = await syncFromStripeEvent(syncEnv, {
+  type: 'customer.updated',
+  created: 1789200001,
+  data: { object: tre20Customer },
+}, mockStripe({ onFly(post) { updatedFly = post; } }).fetchImpl);
+ok('customer.updated POSTs Fly', updatedSync.ok === true && JSON.parse(updatedFly.body).phone === TEST_PHONE);
+
+const skippedType = await syncFromStripeEvent(syncEnv, { type: 'invoice.paid', data: { object: {} } }, flyMock.fetchImpl);
+ok('unrelated Stripe events do not POST Fly', skippedType.skipped === true);
+
+const noSecretSync = await syncFromStripeEvent(testEnv, checkoutEvent, flyMock.fetchImpl);
+ok('webhook without ACCOUNT_SYNC_SECRET does not POST Fly', noSecretSync.skipped === true);
+
+let savedFly;
+let savedCustomer;
+const saveMock = mockStripe({
+  customers: [{ id: 'cus_existing', metadata: { plan: 'plus' } }],
+  onCustomer(form, kind) {
+    savedCustomer = kind === 'update'
+      && form.get('phone') === TEST_PHONE
+      && form.get('name') === 'Nathan Tester'
+      && form.get('metadata[plan]') === 'plus'
+      && form.get('metadata[minutes]') === '90'
+      && form.get('metadata[retain_after_call]') === 'on';
+  },
+  onFly(post) { savedFly = post; },
+});
+const saved = await saveAccountSettings(syncEnv, {
+  email: 'tester@example.com',
+  name: 'Nathan Tester',
+  phone: TEST_PHONE,
+  planId: 'plus',
+  retainAfterCall: 'on',
+  fetchImpl: saveMock.fetchImpl,
+});
+ok('account settings save writes Stripe then Fly', saved.ok === true && savedCustomer === true && JSON.parse(savedFly.body).plan === 'plus' && JSON.parse(savedFly.body).retain_call_artifacts === true && JSON.parse(savedFly.body).minutes_included === 90);
+
+let missingAccount = false;
+try {
+  await saveAccountSettings(syncEnv, {
+    email: 'nobody@example.com',
+    name: 'Nathan',
+    phone: TEST_PHONE,
+    planId: 'personal',
+    fetchImpl: mockStripe({ customers: [] }).fetchImpl,
+  });
+} catch (error) {
+  missingAccount = error.status === 404;
+}
+ok('account settings save without Stripe Customer is 404', missingAccount);
+
+const previousFetch2 = globalThis.fetch;
+globalThis.fetch = mockStripe({
+  customers: [{ id: 'cus_existing', phone: TEST_PHONE, metadata: { plan: 'personal', phone: TEST_PHONE, minutes: '30', retain_after_call: 'off' } }],
+  onFly() {},
+}).fetchImpl;
+try {
+  const req = new Request('https://usetreena.com/api/account', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ plan: 'personal', email: 'tester@example.com', name: 'Nathan Tester', phone: TEST_PHONE, retainAfterCall: 'off' }),
+  });
+  const res = await accountPost({ request: req, env: syncEnv });
+  const body = await res.json();
+  ok('POST /api/account handler (mocked Stripe + Fly)', res.status === 200 && body.ok === true && body.phone === TEST_PHONE);
+} finally {
+  globalThis.fetch = previousFetch2;
+}
+
+const webhookSyncSecret = 'whsec_verifier';
+const checkoutPayload = JSON.stringify({
+  type: 'checkout.session.completed',
+  created: 1789200000,
+  data: {
+    object: {
+      customer: 'cus_test_123',
+      metadata: { plan: 'personal', phone: TEST_PHONE, minutes: '30', retain_after_call: 'off', name: 'Nathan Tester' },
+      client_reference_id: 'personal',
+    },
+  },
+});
+const checkoutTs = Math.floor(Date.now() / 1000);
+const checkoutSig = createHmac('sha256', webhookSyncSecret).update(`${checkoutTs}.${checkoutPayload}`).digest('hex');
+const previousFetch3 = globalThis.fetch;
+let webhookFlyBody;
+globalThis.fetch = mockStripe({
+  onFly(post) { webhookFlyBody = post.body; },
+}).fetchImpl;
+try {
+  const res = await webhookPost({
+    request: new Request('https://usetreena.com/api/webhook', {
+      method: 'POST',
+      headers: { 'Stripe-Signature': `t=${checkoutTs},v1=${checkoutSig}` },
+      body: checkoutPayload,
+    }),
+    env: { STRIPE_WEBHOOK_SECRET: webhookSyncSecret, STRIPE_SECRET_KEY: 'sk_test_verifier', ACCOUNT_SYNC_SECRET: syncSecret },
+  });
+  const body = await res.json();
+  ok('webhook checkout.session.completed POSTs signed Fly sync', res.status === 200 && body.received === true && body.sync && body.sync.ok === true && JSON.parse(webhookFlyBody).phone === TEST_PHONE);
+} finally {
+  globalThis.fetch = previousFetch3;
+}
+
+ok('first-time account continue still goes to pay', /location\.href = href\('pay\.html'/.test(read('public/checkout.js')));
+ok('signup does not collect name', !/id="name"/.test(read('public/account.html')) && /name is not collected on \/account/.test(read('public/checkout.js')));
+
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
 ok('privacy locked body: opt-in store list', /call audio, transcripts, call history, and extra profile data/.test(privacy));
@@ -349,6 +613,9 @@ const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
+ok('FEATURE_MAP records Fly account sync', featureMap.includes('| account-fly-sync |') && /ACCOUNT_SYNC_SECRET/.test(featureMap) && /accounts\/sync/.test(featureMap));
+ok('FEATURE_MAP Fly sync is sot-ready / not live', /\| account-fly-sync \| account \|.*\| sot-ready \|/.test(featureMap) && /Do not claim live/.test(featureMap) && /Pages deploy held/.test(featureMap));
+ok('FEATURE_MAP web does not write Neon', /does not write Neon/.test(featureMap) && /NEON_DATABASE_URL/.test(featureMap) && /sole writer of `users`/.test(featureMap));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
 ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
 ok('FEATURE_MAP privacy locked copy is the live page', /locked copy.*is live/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));

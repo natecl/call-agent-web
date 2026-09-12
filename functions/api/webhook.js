@@ -1,6 +1,7 @@
-import { getPlan } from '../_lib/plans.js';
 import { errorResponse, json } from '../_lib/http.js';
+import { getPlan } from '../_lib/plans.js';
 import { verifyStripeWebhook } from '../_lib/stripe.js';
+import { syncFromStripeEvent } from '../_lib/sync.js';
 
 export async function onRequestPost(context) {
   try {
@@ -25,7 +26,8 @@ export async function onRequestPost(context) {
         throw err;
       }
     }
-    return json({ received: true, type });
+    const sync = await syncFromStripeEvent(context.env, event);
+    return json({ received: true, type, sync });
   } catch (error) {
     return errorResponse(error);
   }
