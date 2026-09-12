@@ -30,7 +30,13 @@ Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastA
 
 ## Privacy
 
-Privacy is Nathan’s locked copy (2026-09-12). Headline: Privacy. Lead (the scare line): We don’t store anything unless you opt in.
+Nathan GO 2026-09-12: this locked copy is the live privacy page. It should go live on `https://usetreena.com/privacy`. Do not hold for Builder default-no-store. Builder deploy may follow merge.
+
+| route | file | status | notes |
+| --- | --- | --- | --- |
+| `/privacy.html` | `public/privacy.html` | shipped | Headline is Privacy. Lead is the scare line. Directory index: `public/privacy/index.html` (`/privacy/`). Same chrome as other inner pages. |
+
+Headline: Privacy. Lead (the scare line): We don’t store anything unless you opt in.
 
 Body, in this order:
 
@@ -42,11 +48,9 @@ Body, in this order:
 6. Contact: privacy@usetreena.com
 7. Quieter secondary line (not the scare line): We keep account login and minute totals for billing.
 
-Files: `public/privacy.html` and directory index `public/privacy/index.html` (`/privacy/`). Same chrome: Treena wordmark, nav, Text Treena, footer. Visual SoT is the existing inner-page system (white, Inter, `--blue` `#007AFF`, existing `.page-main`). Treena is a product, never she/her.
+Same chrome: Treena wordmark, nav, Text Treena, footer. Visual SoT is the existing inner-page system (white, Inter, `--blue` `#007AFF`, existing `.page-main`). Treena is a product, never she/her.
 
 Old Ring five-claim blocks (outbound DID, audio for task+debug, AI disclosure, processors, no selling) are superseded. Do not invent extra legal claims: no HIPAA, no “we never store” without the opt-in exception already in this lock, not Signal-private, not end-to-end encrypted.
-
-This copy is in the repo. Status is not live-shipped. Do not deploy until Builder confirms product default-no-store matches this page. Live `https://usetreena.com/privacy` stays the old five-claim page until then.
 
 Home is HOLD. `public/index.html`, `public/app.js`, hero, demo, motion, and the iMessage line are unchanged.
 
