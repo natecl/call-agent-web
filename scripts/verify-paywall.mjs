@@ -121,11 +121,12 @@ ok('pay copy says no trial', /No trial/.test(pay));
 ok('pay mentions Stripe TEST card', /4242 4242 4242 4242/.test(pay));
 
 const accountHtml = read('public/account.html') + read('public/account/index.html');
-ok('account requires E.164 phone', /id="phone"/.test(accountHtml) && /required/.test(accountHtml) && /E\.164/.test(accountHtml));
+ok('account requires E.164 phone', /id="account-phone"/.test(accountHtml) && /name="phone"/.test(accountHtml) && /E\.164/.test(accountHtml));
 ok('account echoes plan minutes', /data-plan-minutes/.test(accountHtml));
 ok('pay shows phone and minutes', /data-account-phone/.test(pay) && /data-plan-minutes/.test(pay));
 ok('start echoes phone, plan, minutes', /data-account-phone/.test(read('public/start.html')) && /data-plan-minutes/.test(read('public/start.html')));
 ok('client checkout posts phone', /JSON\.stringify\(\{ plan: plan\.id, email, name, phone \}\)/.test(read('public/checkout.js')));
+ok('account phone input is not the SVG #phone symbol', /getElementById\('account-phone'\)/.test(read('public/checkout.js')) && /id="account-phone"/.test(accountHtml));
 
 ok('Pages Functions: checkout', existsSync(join(root, 'functions/api/checkout.js')));
 ok('Pages Functions: session', existsSync(join(root, 'functions/api/session.js')));

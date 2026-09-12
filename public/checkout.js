@@ -158,7 +158,7 @@
   if (form && plan) {
     const nameInput = document.getElementById('name');
     const emailInput = document.getElementById('email');
-    const phoneInput = document.getElementById('phone');
+    const phoneInput = document.getElementById('account-phone');
     try {
       if (nameInput) nameInput.value = sessionStorage.getItem(KEY.name) || '';
       if (emailInput) emailInput.value = sessionStorage.getItem(KEY.email) || '';
