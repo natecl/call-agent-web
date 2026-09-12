@@ -2,20 +2,20 @@
 
 This file maps the public landing as a product surface. It is not an implementation plan.
 
-## Design-scoped checkout stubs
+## Account + Stripe TEST paywall
 
 Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
 
-These routes are **stubs**. No live Stripe, no checkout API, no payment backend, no auth backend.
+TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription.
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
-| `/pricing.html` | `public/pricing.html` | stub | Headline is Pricing (not coming soon). Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Do not open Stripe. Directory index: `public/pricing/index.html` (`/pricing/`). |
-| `/account.html` | `public/account.html` | stub | Create-account form: email required, name optional, Continue. Client-only. No real auth. Then pay with plan preserved. Directory index: `public/account/index.html` (`/account/`). |
-| `/pay.html` | `public/pay.html` | stub | Confirms selected plan (price + minutes + overage). Primary Pay $20 / Pay $40 is a stub: no Stripe.js, no keys, no network charge. Muted “Stub — checkout not live”. Directory index: `public/pay/index.html` (`/pay/`). |
-| `/start.html` | `public/start.html` | stub | Post-pay start/done screen. First time in this flow the visitor hits Text Treena. Reuses the coming-soon dialog (Treena’s number is coming soon / see how it works). Directory index: `public/start/index.html` (`/start/`). |
+| `/pricing.html` | `public/pricing.html` | shipped | Headline is Pricing. Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Directory index: `public/pricing/index.html` (`/pricing/`). |
+| `/account.html` | `public/account.html` | shipped | Create-account form: email required, name optional, Continue. Email is the account. Stripe Customer is created at checkout (TEST). Plan preserved. Directory index: `public/account/index.html` (`/account/`). |
+| `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
+| `/start.html` | `public/start.html` | shipped | Post-pay start/done screen. Unlocks only after `GET /api/session` verifies a paid TEST Checkout Session. First Text Treena in this flow. Reuses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
 
-Order: landing (untouched) → account + pay → then Text Treena.
+Order: landing (untouched) → account + pay (Stripe TEST, no trial) → then Text Treena.
 
 Locked plans only:
 
@@ -24,7 +24,9 @@ Locked plans only:
 
 No trial. No free forever. No annual/team/enterprise. Privacy page claims stay as they are.
 
-Out of scope for Builder later: live Stripe and real auth.
+Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`).
+
+Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging.
 
 ## Status words
 
@@ -287,9 +289,10 @@ The overall-page frame is the attached PNG `09-illustrated-use-cases.png`, measu
 These items are outside this map.
 
 - Pixel rebuild
-- Deploy
+- Live Stripe (`sk_live_`) / KYC / real charges
+- Fly / call-agent FastAPI / Linq live messaging
 - Cloudflare Git wiring
 - Neon
 - R2
-- Workers
+- Workers other than Pages Functions for Stripe TEST checkout
 - The product calling stack in `natecl/call-agent`
