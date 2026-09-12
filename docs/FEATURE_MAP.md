@@ -2,6 +2,30 @@
 
 This file maps the public landing as a product surface. It is not an implementation plan.
 
+## Design-scoped checkout stubs
+
+Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
+
+These routes are **stubs**. No live Stripe, no checkout API, no payment backend, no auth backend.
+
+| route | file | status | notes |
+| --- | --- | --- | --- |
+| `/pricing.html` | `public/pricing.html` | stub | Headline is Pricing (not coming soon). Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Do not open Stripe. Directory index: `public/pricing/index.html` (`/pricing/`). |
+| `/account.html` | `public/account.html` | stub | Create-account form: email required, name optional, Continue. Client-only. No real auth. Then pay with plan preserved. Directory index: `public/account/index.html` (`/account/`). |
+| `/pay.html` | `public/pay.html` | stub | Confirms selected plan (price + minutes + overage). Primary Pay $20 / Pay $40 is a stub: no Stripe.js, no keys, no network charge. Muted “Stub — checkout not live”. Directory index: `public/pay/index.html` (`/pay/`). |
+| `/start.html` | `public/start.html` | stub | Post-pay start/done screen. First time in this flow the visitor hits Text Treena. Reuses the coming-soon dialog (Treena’s number is coming soon / see how it works). Directory index: `public/start/index.html` (`/start/`). |
+
+Order: landing (untouched) → account + pay → then Text Treena.
+
+Locked plans only:
+
+1. Personal — $20/mo · 30 connected min · $0.15/min overage
+2. Plus — $40/mo · 90 min · $0.12/min
+
+No trial. No free forever. No annual/team/enterprise. Privacy page claims stay as they are.
+
+Out of scope for Builder later: live Stripe and real auth.
+
 ## Status words
 
 This map uses exactly three status values.
