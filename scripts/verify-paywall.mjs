@@ -329,7 +329,9 @@ const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
-ok('FEATURE_MAP privacy locked copy not live-shipped', /not live-shipped/.test(featureMap) && /default-no-store/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
+ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
+ok('FEATURE_MAP privacy locked copy is the live page', /locked copy is the live privacy page/.test(featureMap) && /Builder deploy may follow merge/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
+ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
 ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
