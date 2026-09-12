@@ -1,0 +1,12 @@
+# Stripe TEST only. Never put sk_live_ or pk_live_ here.
+# Copy to .dev.vars for `npm run dev`. Do not commit real values.
+
+STRIPE_SECRET_KEY=sk_test_replace_me
+STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
+
+# Optional. If omitted, Checkout uses inline price_data (Personal $20 / Plus $40).
+# STRIPE_PRICE_PERSONAL=price_...
+# STRIPE_PRICE_PLUS=price_...
+
+# Optional. Stripe TEST webhook signing secret for POST /api/webhook.
+# STRIPE_WEBHOOK_SECRET=whsec_...

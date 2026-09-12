@@ -1,0 +1,14 @@
+{
+  "name": "call-agent-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --compatibility-date=2026-09-12",
+    "verify": "node scripts/verify-paywall.mjs",
+    "verify:paywall": "node scripts/verify-paywall.mjs",
+    "deploy": "wrangler pages deploy public --project-name=call-agent"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}

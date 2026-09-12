@@ -8,7 +8,7 @@
   <title>Start — Treena</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
   <link rel="preload" href="assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20260912-paystub">
+  <link rel="stylesheet" href="style.css?v=20260912-paytest">
 </head>
 <body data-page="start" data-base=".">
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -26,11 +26,17 @@
   <button class="button primary text-relay">Text Treena</button>
 </header>
 <main id="main" class="page-main page-flow">
-  <h1>You’re in</h1>
-  <p class="page-lead">Text Treena to place a call.</p>
-  <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
-  <p class="page-cta"><button class="button primary text-relay">Text Treena</button></p>
-  <p class="stub-note">Stub — checkout not live</p>
+  <div id="start-pending">
+    <h1>Confirming payment</h1>
+    <p class="page-lead">Checking your Stripe TEST subscription…</p>
+  </div>
+  <div id="start-ready" hidden>
+    <h1>You’re in</h1>
+    <p class="page-lead">Text Treena to place a call.</p>
+    <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
+    <p class="page-cta"><button class="button primary text-relay">Text Treena</button></p>
+    <p class="stub-note">Stripe TEST subscription is active.</p>
+  </div>
 </main>
 <footer>
   <a class="brand" href="index.html">Treena</a>
@@ -48,6 +54,6 @@
   <button class="button primary" id="dialog-demo">Watch the demo</button>
 </dialog>
 <script src="chrome.js"></script>
-<script src="checkout-stub.js"></script>
+<script src="checkout.js"></script>
 </body>
 </html>
