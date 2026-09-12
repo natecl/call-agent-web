@@ -27,12 +27,12 @@
   <p class="page-lead">Your plan: <span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo.</p>
   <p class="form-intro">Start with your details. You’ll review the full price before checkout.</p><form id="account-form" action="../pay.html" method="get">
     <div class="field">
-      <label for="name">Name</label>
-      <input id="name" name="name" type="text" autocomplete="name" required pattern=".*\S.*" title="Enter your name">
-    </div>
-    <div class="field">
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="email" required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
     </div>
     <div class="field">
       <label for="account-phone">Phone</label>
@@ -51,7 +51,7 @@
     </div>
   </form>
   <a class="change-plan" href="../pricing.html">Change plan</a>
-  <p class="stub-note">No password. Email + phone are the account. No trial.</p>
+  <p class="stub-note">No trial. Name lives in account settings after signup.</p>
 </div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
   <a class="brand" href="../index.html">Treena</a>

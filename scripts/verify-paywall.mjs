@@ -80,13 +80,16 @@ const originalHome = execFileSync('git', ['show', 'HEAD:public/index.html'], { c
 const expectedHome = originalHome.replace(/(<nav aria-label="Main navigation">)(.*?)(<\/nav>)/s, (_, open, body, close) => {
   const links = [...body.matchAll(/<a\b[^>]*>.*?<\/a>/gs)].map(match => match[0]);
   return open + ['Pricing', 'Privacy', 'How it works', 'What it can do'].map(label => links.find(link => link.endsWith(`>${label}</a>`))).join('') + close;
-}).replace('</head>', '<link rel="stylesheet" href="motion.css?v=20260912-motion1">\n</head>').replaceAll('<button class="button primary text-relay">Text Treena</button>', '<a class="button primary" href="account.html?plan=personal">Text Treena</a>');
+}).replace('</head>', (originalHome.includes('motion.css') ? '</head>' : '<link rel="stylesheet" href="motion.css?v=20260912-motion1">\n</head>')).replaceAll('<button class="button primary text-relay">Text Treena</button>', '<a class="button primary" href="account.html?plan=personal">Text Treena</a>');
 ok('home layout unchanged except authorized CTA destinations and transition stylesheet', read('public/index.html') === expectedHome);
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
 const accountHtml = read('public/account.html');
-ok('account name input is required', /id="name"[^>]*required/.test(accountHtml));
+ok('account email input is required', /id="email"[^>]*required/.test(accountHtml));
+ok('account password input is required', /id="password"[^>]*required/.test(accountHtml));
+ok('account form has no name field', !/id="name"/.test(accountHtml));
+ok('account form has no no-password copy', !/No password/.test(accountHtml));
 ok('account phone input is required', /id="account-phone"[^>]*required/.test(accountHtml));
 ok('account retain checkbox defaults off', /id="retain-after-call"/.test(accountHtml) && !/id="retain-after-call"[^>]*checked/.test(accountHtml));
 
@@ -344,6 +347,7 @@ ok('privacy directory index points How it works at home', /href="\.\.\/index\.ht
 
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
+ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
 ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));

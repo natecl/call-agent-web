@@ -1,4 +1,4 @@
-// Stripe TEST checkout. Email + E.164 phone are captured here; the secret stays on Pages Functions.
+// Stripe TEST checkout. Email + password + E.164 phone captured here. Password stays client-side (auth backend / OAuth parked). Name is not collected on this page. Secret stays on Pages Functions.
 (function () {
   const PLANS = {
     personal: { id: 'personal', name: 'Personal', price: 20, minutes: 30, overage: '0.15' },
@@ -7,7 +7,6 @@
   const KEY = {
     plan: 'treena-plan',
     email: 'treena-email',
-    name: 'treena-name',
     phone: 'treena-phone',
     retain: 'treena-retain-after-call',
     session: 'treena-session-id',
@@ -177,13 +176,13 @@
 
   const form = document.getElementById('account-form');
   if (form && plan) {
-    const nameInput = document.getElementById('name');
     const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
     const phoneInput = document.getElementById('account-phone');
     const retainInput = document.getElementById('retain-after-call');
     try {
-      if (nameInput) nameInput.value = sessionStorage.getItem(KEY.name) || '';
       if (emailInput) emailInput.value = sessionStorage.getItem(KEY.email) || '';
+      // never restore password into the DOM from storage
       if (phoneInput) phoneInput.value = sessionStorage.getItem(KEY.phone) || '';
       if (retainInput) retainInput.checked = sessionStorage.getItem(KEY.retain) === 'on';
     } catch (_) {}
@@ -198,16 +197,16 @@
       }
       if (!form.reportValidity()) return;
       const email = emailInput.value.trim();
-      const name = nameInput ? nameInput.value.trim() : '';
+      // password required by the form; not persisted or sent to Stripe (auth backend / OAuth parked)
+      if (passwordInput && !passwordInput.value) return;
       const retainAfterCall = retainInput && retainInput.checked ? 'on' : 'off';
       try {
         sessionStorage.setItem(KEY.email, email);
         sessionStorage.setItem(KEY.phone, phone);
         sessionStorage.setItem(KEY.plan, plan.id);
         sessionStorage.setItem(KEY.retain, retainAfterCall);
-        if (name) sessionStorage.setItem(KEY.name, name);
-        else sessionStorage.removeItem(KEY.name);
         sessionStorage.removeItem(KEY.session);
+        sessionStorage.removeItem('treena-name');
       } catch (_) {}
       location.href = href('pay.html', plan.id);
     });
@@ -220,12 +219,10 @@
       event.preventDefault();
       showError('pay-error', '');
       let email = '';
-      let name = '';
       let phone = '';
       let retainAfterCall = 'off';
       try {
         email = sessionStorage.getItem(KEY.email) || '';
-        name = sessionStorage.getItem(KEY.name) || '';
         phone = sessionStorage.getItem(KEY.phone) || '';
         retainAfterCall = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off';
       } catch (_) {}
@@ -238,10 +235,11 @@
         submit.textContent = 'Redirecting to Stripe…';
       }
       try {
+        // name is not collected on /account — lives in account settings / users row later
         const result = await api('/api/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ plan: plan.id, email, name, phone, retainAfterCall }),
+          body: JSON.stringify({ plan: plan.id, email, phone, retainAfterCall }),
         });
         if (!result.url) throw new Error('Checkout URL missing');
         location.href = result.url;
