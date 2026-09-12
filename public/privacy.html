@@ -9,39 +9,35 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
   <link rel="preload" href="assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=20260911-focus14">
+  <link rel="stylesheet" href="subpages.css?v=20260912-system2">
+<link rel="stylesheet" href="motion.css?v=20260912-system2">
 </head>
-<body>
+<body class="subpage">
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
 <symbol id="phone" viewBox="0 0 24 24"><path d="M5 3h3l2 5-2 2c1.5 3 3 4.5 6 6l2-2 5 2v3c0 2-2 3-4 2C9 19 5 15 3 7c-1-2 0-4 2-4Z" fill="currentColor" stroke="none"/></symbol>
 </defs></svg>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav">
   <a class="brand" href="index.html" aria-label="Treena home">Treena</a>
-  <nav aria-label="Main navigation">
-    <a href="index.html#how-it-works">How it works</a>
-    <a href="index.html#use-cases">What it can do</a>
-    <a href="privacy.html" aria-current="page">Privacy</a>
-    <a href="pricing.html">Pricing</a>
-  </nav>
-  <button class="button primary text-relay">Text Treena</button>
+  <nav aria-label="Main navigation"><a href="pricing.html">Pricing</a><a href="privacy.html" aria-current="page">Privacy</a><a href="index.html#how-it-works">How it works</a><a href="index.html#use-cases">What it can do</a></nav>
+  <a class="button primary" href="account.html?plan=personal">Text Treena</a>
 </header>
-<main id="main" class="page-main">
-  <h1>Privacy</h1>
-  <p class="page-lead">We don’t store anything unless you opt in.</p>
-  <h2>Off by default</h2>
-  <p>That includes call audio, transcripts, call history, and extra profile data — off by default. Nothing is saved after a call unless you turn saving on.</p>
-  <h2>While a call is happening</h2>
-  <p>While a call is happening, audio passes through our providers so the call can run (Telnyx; OpenAI). When you haven’t opted in, we don’t keep it.</p>
-  <h2>If you opt in</h2>
-  <p>If you opt in, you choose what to keep (audio, transcript, and/or history). You can turn that off and ask us to delete what was saved.</p>
-  <h2>On the call</h2>
-  <p>On the call: the other party hears that it’s on behalf of your first name. Treena doesn’t say the product name.</p>
-  <h2>We don’t sell your content as ads</h2>
-  <p>We don’t sell your content as ads. We’re not Signal-private or end-to-end encrypted.</p>
-  <h2>Contact</h2>
-  <p>Contact: <a href="mailto:privacy@usetreena.com">privacy@usetreena.com</a></p>
+<main id="main" class="page-main page-privacy">
+  <div class="page-intro"><p class="eyebrow">Your calls. Your choice.</p><h1>Privacy</h1>
+  <p class="page-lead">We don’t store anything unless you opt in.</p></div>
+<section class="privacy-overview" aria-label="Privacy at a glance">
+ <div class="privacy-overview-copy"><p class="eyebrow">Privacy at a glance</p><h2>A call handled.<br>A choice respected.</h2><p>Saving is optional. Here’s what that means for your calls, and what we keep to run your account.</p><a class="inline-link" href="#privacy-details">Explore the details <span aria-hidden="true">↓</span></a></div>
+ <div class="saving-overview"><div class="saving-heading"><span>Call content</span><span class="status-pill">Saving off by default</span></div><div class="saving-row"><span>01</span><strong>Call audio</strong><span class="saving-state">Not saved by default</span></div><div class="saving-row"><span>02</span><strong>Transcripts</strong><span class="saving-state">Not saved by default</span></div><div class="saving-row"><span>03</span><strong>Call history</strong><span class="saving-state">Not saved by default</span></div><p class="saving-note">You choose whether to save call content.</p></div>
+</section>
+<div class="privacy-layout" id="privacy-details"><aside class="privacy-aside"><p class="eyebrow">The finer details</p><h2>Clear by design.</h2><p>Understand what happens before, during, and after a call.</p><nav aria-label="Privacy sections"><a href="#saving">01 <span>Off by default</span></a><a href="#processing">02 <span>During your call</span></a><a href="#choice">03 <span>Your choices</span></a><a href="#identity">04 <span>On your behalf</span></a><a href="#boundaries">05 <span>Our boundaries</span></a></nav></aside><div class="privacy-sections">
+<section class="privacy-section" id="saving"><span class="section-number">01</span><h2>Off by default</h2><p>That includes call audio, transcripts, call history, and extra profile data — off by default. Nothing is saved after a call unless you turn saving on.</p></section>
+<section class="privacy-section" id="processing"><span class="section-number">02</span><h2>While a call is happening</h2><p>While a call is happening, audio passes through our providers so the call can run (Telnyx; OpenAI). When you haven’t opted in, we don’t keep it.</p></section>
+<section class="privacy-section" id="choice"><span class="section-number">03</span><h2>If you opt in</h2><p>If you opt in, you choose what to keep (audio, transcript, and/or history). You can turn that off and ask us to delete what was saved.</p></section>
+<section class="privacy-section" id="identity"><span class="section-number">04</span><h2>On the call</h2><p>On the call: the other party hears that it’s on behalf of your first name. Treena doesn’t say the product name.</p></section>
+<section class="privacy-section" id="boundaries"><span class="section-number">05</span><h2>We don’t sell your content as ads</h2><p>We don’t sell your content as ads. You choose what to save, and you can ask us to delete what you’ve saved.</p></section>
+<section class="privacy-section privacy-contact" id="privacy-contact"><p class="eyebrow">An open line</p><h2>Your privacy questions,<br>answered by us.</h2><p>Contact: <a href="mailto:privacy@usetreena.com">privacy@usetreena.com</a></p></section>
   <p class="stub-note">We keep account login and minute totals for billing.</p>
-</main>
+</div></div></main>
 <footer>
   <a class="brand" href="index.html">Treena</a>
   <span class="footer-right">
@@ -50,13 +46,14 @@
     <a href="pricing.html">Pricing</a>
   </span>
 </footer>
-<dialog id="contact-dialog">
+<dialog id="contact-dialog" aria-labelledby="contact-title">
   <button class="dialog-close" aria-label="Close">×</button>
   <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
-  <h2>Your next call,<br>handled.</h2>
-  <p>Treena’s number is coming soon.<br>For now, see how it works.</p>
-  <button class="button primary" id="dialog-demo">Watch the demo</button>
+  <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
+  <p>Treena’s number is coming soon. Get a feel for what happens when you hand off a call.</p>
+  <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
 </dialog>
-<script src="chrome.js"></script>
+<script src="chrome.js?v=20260912-polish"></script>
+<script src="motion.js?v=20260912-motion1"></script>
 </body>
 </html>

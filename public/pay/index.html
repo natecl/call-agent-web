@@ -8,44 +8,39 @@
   <title>Pay — Treena</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
   <link rel="preload" href="../assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="../style.css?v=20260912-retain">
+  <link rel="stylesheet" href="../style.css?v=20260912-paytest">
+  <link rel="stylesheet" href="../subpages.css?v=20260912-system2">
+<link rel="stylesheet" href="../motion.css?v=20260912-system2">
 </head>
-<body data-page="pay" data-base="..">
+<body class="subpage" data-page="pay" data-base="..">
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
 <symbol id="phone" viewBox="0 0 24 24"><path d="M5 3h3l2 5-2 2c1.5 3 3 4.5 6 6l2-2 5 2v3c0 2-2 3-4 2C9 19 5 15 3 7c-1-2 0-4 2-4Z" fill="currentColor" stroke="none"/></symbol>
 </defs></svg>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav">
   <a class="brand" href="../index.html" aria-label="Treena home">Treena</a>
-  <nav aria-label="Main navigation">
-    <a href="../index.html#how-it-works">How it works</a>
-    <a href="../index.html#use-cases">What it can do</a>
-    <a href="../privacy.html">Privacy</a>
-    <a href="../pricing.html">Pricing</a>
-  </nav>
-  <button class="button primary text-relay">Text Treena</button>
+  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
+  <a class="button primary" href="../account.html?plan=personal">Text Treena</a>
 </header>
-<main id="main" class="page-main page-flow">
-  <h1>Confirm your plan</h1>
-  <p class="page-lead">Confirm your plan, then pay on Stripe. No trial.</p>
+<main id="main" class="page-main page-flow"><ol class="flow-steps" aria-label="Setup progress"><li class="complete"><span>1</span>Your details</li><li class="current" aria-current="step"><span>2</span>Review & pay</li><li class=""><span>3</span>Get started</li></ol><div class="flow-panel">
+  <p class="eyebrow">One last look</p><h1>Confirm your plan</h1>
+  <p class="page-lead">Your monthly plan, with everything up front. Continue to Stripe to complete checkout. No trial.</p>
   <form id="pay-form">
     <div class="pay-summary">
       <div class="pay-row"><span>Plan</span><strong data-plan-name>Personal</strong></div>
-      <div class="pay-row"><span>Price</span><strong>$<span data-plan-price>20</span>/mo</strong></div>
+      <div class="pay-row"><span>Monthly price</span><strong>$<span data-plan-price>20</span>/mo</strong></div>
       <div class="pay-row"><span>Connected minutes</span><strong><span data-plan-minutes>30</span> min</strong></div>
       <div class="pay-row"><span>Overage</span><strong>$<span data-plan-overage>0.15</span>/min</strong></div>
-      <div class="pay-row"><span>Email</span><strong data-account-email></strong></div>
-      <div class="pay-row"><span>Phone</span><strong data-account-phone></strong></div>
-      <div class="pay-row"><span>Account save setting</span><strong data-retain-label>Don’t save</strong></div>
+      <div class="pay-row"><span>Account</span><strong data-account-email></strong></div>
     </div>
     <div class="flow-actions">
       <button class="button primary" type="submit" data-pay-label>Pay $20</button>
     </div>
   </form>
-  <p class="flow-error" id="pay-error" hidden></p>
+  <p class="flow-error" id="pay-error" role="alert" hidden></p>
   <a class="change-plan" href="../pricing.html">Change plan</a>
-  <p class="stub-note">Stripe TEST — use card 4242 4242 4242 4242</p>
-</main>
+  <p class="stub-note"><strong>Test checkout</strong> · No real charge.<br>Use test card 4242 4242 4242 4242.</p>
+</div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
   <a class="brand" href="../index.html">Treena</a>
   <span class="footer-right">
@@ -54,14 +49,15 @@
     <a href="../pricing.html">Pricing</a>
   </span>
 </footer>
-<dialog id="contact-dialog">
+<dialog id="contact-dialog" aria-labelledby="contact-title">
   <button class="dialog-close" aria-label="Close">×</button>
   <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
-  <h2>Your next call,<br>handled.</h2>
-  <p>Treena’s number is coming soon.<br>For now, see how it works.</p>
-  <button class="button primary" id="dialog-demo">Watch the demo</button>
+  <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
+  <p>Treena’s number is coming soon. Get a feel for what happens when you hand off a call.</p>
+  <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
 </dialog>
-<script src="../chrome.js"></script>
+<script src="../chrome.js?v=20260912-polish"></script>
 <script src="../checkout.js"></script>
+<script src="../motion.js?v=20260912-motion1"></script>
 </body>
 </html>
