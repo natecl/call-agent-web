@@ -11,7 +11,7 @@ TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays
 | route | file | status | notes |
 | --- | --- | --- | --- |
 | `/pricing.html` | `public/pricing.html` | shipped | Headline is Pricing. Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Directory index: `public/pricing/index.html` (`/pricing/`). |
-| `/account.html` | `public/account.html` | shipped | Create-account form: **name required**, email required, **phone required (E.164)**, account-level retain checkbox default off. Stripe Customer at checkout (TEST). Directory index: `public/account/index.html` (`/account/`). |
+| `/account.html` | `public/account.html` | shipped | Create-account form: **email + password required** (no name on this page — name lives on users row / account settings), **phone required (E.164)**, account-level retain checkbox default off. No OAuth/provider sign-in (parked). Password not sent to Stripe. Stripe Customer at checkout (TEST). Directory index: `public/account/index.html` (`/account/`). |
 | `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
 | `/start.html` | `public/start.html` | shipped | Post-pay start/done screen. Unlocks only after `GET /api/session` verifies a paid TEST Checkout Session. First Text Treena in this flow. Reuses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
 
@@ -26,7 +26,7 @@ No trial. No free forever. No annual/team/enterprise.
 
 Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`).
 
-Out of scope: live Stripe, KYC, password/magic-link auth, Fly / call-agent FastAPI, Linq live messaging.
+Out of scope: live Stripe, KYC, OAuth/provider sign-in, magic-link auth backend, Fly / call-agent FastAPI, Linq live messaging. Account form collects password UI-only until auth backend ships.
 
 ## Privacy
 
