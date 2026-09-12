@@ -46,7 +46,7 @@ Files: `public/privacy.html` and directory index `public/privacy/index.html` (`/
 
 Old Ring five-claim blocks (outbound DID, audio for task+debug, AI disclosure, processors, no selling) are superseded. Do not invent extra legal claims: no HIPAA, no “we never store” without the opt-in exception already in this lock, not Signal-private, not end-to-end encrypted.
 
-This copy is in the repo. Status is not live-shipped. Do not deploy until Builder confirms product default-no-store matches this page. Live `https://usetreena.com/privacy` stays the old five-claim page until then.
+Status: **live** at `https://usetreena.com/privacy` (deployed 2026-09-12 from `867e411c`, Pages project `call-agent`). Locked opt-in copy is what users see. Product default-wipe (TRE-23) and account opt-in setting (TRE-20) remain separate climbs — page copy shipped ahead of full wipe mechanics per Nathan GO.
 
 Home is HOLD. `public/index.html`, `public/app.js`, hero, demo, motion, and the iMessage line are unchanged.
 
