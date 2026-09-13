@@ -1,6 +1,8 @@
 import { PLANS } from '../_lib/plans.js';
 import { errorResponse, json } from '../_lib/http.js';
 import { requireTestPublishable, requireTestSecret } from '../_lib/stripe.js';
+import { treenaIMessageView } from '../_lib/imessage.js';
+import { oauthStatus } from '../_lib/auth.js';
 
 export async function onRequestGet(context) {
   try {
@@ -16,6 +18,7 @@ export async function onRequestGet(context) {
     const publishableKey = requireTestPublishable(env.STRIPE_PUBLISHABLE_KEY);
     return json({
       mode: 'test',
+      stripeLive: false,
       configured,
       publishableKey: publishableKey || null,
       prices: {
@@ -29,6 +32,8 @@ export async function onRequestGet(context) {
         minutes: plan.minutes,
         overage: plan.overage,
       })),
+      imessage: treenaIMessageView(env),
+      oauth: oauthStatus(env),
     });
   } catch (error) {
     return errorResponse(error);

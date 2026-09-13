@@ -1,4 +1,4 @@
-// Stripe TEST checkout. Email + password + E.164 phone captured here. Password stays client-side (auth backend / OAuth parked). Name is not collected on /account. Secret stays on Pages Functions.
+// Stripe TEST checkout. Email + password + E.164 (the user's phone, not Treena's shared bot DID). Password stays client-side unless Google/Apple session is present. Name is not collected on /account. Secret stays on Pages Functions.
 (function () {
   const PLANS = {
     personal: { id: 'personal', name: 'Personal', price: 20, minutes: 30, overage: '0.15' },
@@ -129,6 +129,24 @@
       throw err;
     }
     return data;
+  }
+
+  function applyOAuthSession(me) {
+    if (!me || !me.signedIn) return;
+    const emailInput = document.getElementById('email');
+    if (emailInput && me.email) emailInput.value = me.email;
+    const passwordInput = document.getElementById('password');
+    if (passwordInput) {
+      passwordInput.required = false;
+      passwordInput.disabled = true;
+      passwordInput.value = '';
+    }
+    const passwordField = document.getElementById('password-field');
+    if (passwordField) passwordField.hidden = true;
+    try {
+      if (me.email) sessionStorage.setItem(KEY.email, me.email);
+      if (me.name) sessionStorage.setItem(KEY.name, me.name);
+    } catch (_) {}
   }
 
   function storeSession(result, sessionId) {
@@ -344,6 +362,7 @@
       if (phoneInput) phoneInput.value = sessionStorage.getItem(KEY.phone) || '';
       if (retainInput) retainInput.checked = sessionStorage.getItem(KEY.retain) === 'on';
     } catch (_) {}
+    fetch('/api/auth/me').then((res) => res.json()).then(applyOAuthSession).catch(() => {});
     if (phoneInput) {
       phoneInput.addEventListener('input', () => phoneInput.setCustomValidity(''));
     }
@@ -355,8 +374,8 @@
       }
       if (!form.reportValidity()) return;
       const email = emailInput.value.trim();
-      // password required by the form; not persisted or sent to Stripe (auth backend / OAuth parked)
-      if (passwordInput && !passwordInput.value) return;
+      // password required unless Google/Apple session is present; never sent to Stripe
+      if (passwordInput && passwordInput.required && !passwordInput.value) return;
       const retainAfterCall = retainInput && retainInput.checked ? 'on' : 'off';
       try {
         sessionStorage.setItem(KEY.email, email);

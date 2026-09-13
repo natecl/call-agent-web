@@ -21,6 +21,9 @@ import {
   syncFromStripeEvent,
 } from '../functions/_lib/sync.js';
 import { billingView, loadDashboard } from '../functions/_lib/dashboard.js';
+import { DEFAULT_TREENA_IMESSAGE_E164, treenaIMessageView } from '../functions/_lib/imessage.js';
+import { appleMissing, googleMissing, oauthStatus, signPayload, startAppleOAuth, startGoogleOAuth, verifyPayload } from '../functions/_lib/auth.js';
+import { onRequest as authOnRequest } from '../functions/api/auth/[[path]].js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
 import { onRequestPost as accountPost } from '../functions/api/account.js';
 import { onRequestGet as sessionGet } from '../functions/api/session.js';
@@ -30,8 +33,8 @@ import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
 import { onRequestGet as billingGet } from '../functions/api/billing.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE_HOME_SHA = '38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77';
-const LIVE_HOME_BYTES = 8697;
+const LIVE_HOME_SHA = '8c84c3b942ec59982fcbb3836307a44f67ee67054845fce0ab273bd7a14a7e45';
+const LIVE_HOME_BYTES = 8760;
 const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
 const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
@@ -164,9 +167,14 @@ const publicFiles = [
   'public/start/index.html',
   'public/dashboard.html',
   'public/dashboard/index.html',
+  'public/login.html',
+  'public/login/index.html',
   'public/checkout.js',
   'public/index.html',
   'public/app.js',
+  'public/imessage.js',
+  'public/auth.js',
+  'public/chrome.js',
 ];
 const publicBlob = publicFiles.map(read).join('\n');
 ok('no stub banners in checkout pages', !/Stub —/.test(read('public/account.html') + read('public/pay.html') + read('public/start.html')));
@@ -357,8 +365,9 @@ try {
 
 const configRes = await configGet({ request: new Request('https://usetreena.com/api/config'), env: testEnv });
 const configBody = await configRes.json();
-ok('GET /api/config is TEST-only', configRes.status === 200 && configBody.mode === 'test' && configBody.configured === true);
+ok('GET /api/config is TEST-only', configRes.status === 200 && configBody.mode === 'test' && configBody.configured === true && configBody.stripeLive === false);
 ok('publishable key is pk_test_', String(configBody.publishableKey || '').startsWith('pk_test_'));
+ok('config publishes shared iMessage DID', configBody.imessage && configBody.imessage.e164 === '+12138653024' && configBody.imessage.smsUrl === 'sms:+12138653024' && configBody.imessage.shared === true);
 
 const liveConfig = await configGet({
   request: new Request('https://usetreena.com/api/config'),
@@ -409,6 +418,9 @@ const functionsBlob = [
   'functions/api/dashboard.js',
   'functions/api/billing.js',
   'functions/_lib/dashboard.js',
+  'functions/_lib/imessage.js',
+  'functions/_lib/auth.js',
+  'functions/api/auth/[[path]].js',
 ].map(read).join('\n');
 ok('website never opens NEON_DATABASE_URL', !/NEON_DATABASE_URL/.test(functionsBlob));
 ok('account sync URL defaults to Fly origin', accountSyncUrl({}) === DEFAULT_SYNC_URL);
@@ -617,13 +629,48 @@ ok('home still has iMessage line in index', read('public/index.html').includes(I
 ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
 ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
-ok('OAuth provider sign-in absent', !/accounts\.google|Sign in with Google|oauth2/i.test(publicBlob + functionsBlob));
+ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /Sign in with Apple/.test(publicBlob) && /accounts\.google\.com/.test(functionsBlob));
+ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
+ok('_redirects keeps /login off the homepage', /\/login \/login\.html 200/.test(read('public/_redirects')));
+ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
+ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/login.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
+ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));
+ok('imessage helper defaults to Cap DID', treenaIMessageView({}).e164 === '+12138653024' && treenaIMessageView({ PUBLIC_TREENA_IMESSAGE_E164: '+14155550100' }).e164 === '+14155550100');
+
+const googleMissingKeys = googleMissing({});
+ok('google missing names GOOGLE_CLIENT_ID + secret + AUTH_SESSION_SECRET', googleMissingKeys.includes('GOOGLE_CLIENT_ID') && googleMissingKeys.includes('GOOGLE_CLIENT_SECRET') && googleMissingKeys.includes('AUTH_SESSION_SECRET'));
+ok('apple missing names Apple + AUTH_SESSION_SECRET', appleMissing({}).includes('APPLE_CLIENT_ID') && appleMissing({}).includes('APPLE_PRIVATE_KEY') && appleMissing({}).includes('AUTH_SESSION_SECRET'));
+ok('oauth status is false without secrets', oauthStatus({}).google === false && oauthStatus({}).apple === false);
+
+const googleBlocked = await startGoogleOAuth({}, new Request('https://usetreena.com/api/auth/google'));
+ok('google start without secrets redirects to /login with missing keys', googleBlocked.status === 302 && /login\.html/.test(googleBlocked.headers.get('Location')) && /GOOGLE_CLIENT_ID/.test(googleBlocked.headers.get('Location')));
+const appleBlocked = await startAppleOAuth({}, new Request('https://usetreena.com/api/auth/apple'));
+ok('apple start without secrets redirects to /login with missing keys', appleBlocked.status === 302 && /APPLE_CLIENT_ID/.test(appleBlocked.headers.get('Location')));
+
+const googleReady = await startGoogleOAuth({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+}, new Request('https://usetreena.com/api/auth/google'));
+ok('google start with secrets redirects to Google', googleReady.status === 302 && String(googleReady.headers.get('Location')).startsWith('https://accounts.google.com/o/oauth2/v2/auth'));
+
+const routed = await authOnRequest({
+  request: new Request('https://usetreena.com/api/auth/me'),
+  env: {},
+  params: { path: ['me'] },
+});
+const meBody = await routed.json();
+ok('GET /api/auth/me works without session', routed.status === 200 && meBody.signedIn === false);
+
+const signed = await signPayload('auth-session-secret', { email: 'a@b.com', exp: Math.floor(Date.now() / 1000) + 60 });
+const authPayload = await verifyPayload('auth-session-secret', signed);
+ok('auth payload roundtrip', authPayload.email === 'a@b.com');
 
 const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
 ok('dashboard has four sections', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml));
 ok('dashboard billing TEST badge', /class="test-badge">TEST/.test(dashboardHtml) && /No real charge/.test(dashboardHtml));
 ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
-ok('dashboard threads empty state', /No threads yet\. Text Treena after your number is live\./.test(dashboardHtml));
+ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
 ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
 ok('dashboard directory index exists', existsSync(join(root, 'public/dashboard/index.html')));
 ok('start name gate posts /api/account', /start-name-form/.test(read('public/checkout.js')) && /\/api\/account/.test(read('public/checkout.js')));
@@ -769,9 +816,12 @@ ok('privacy directory index points How it works at home', /href="\.\.\/index\.ht
 
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
-ok('FEATURE_MAP live home SHA is 8697-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8697/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap));
+ok('FEATURE_MAP live home SHA is 8760-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8760/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
+ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
+ok('FEATURE_MAP Stripe live HOLD', /live Stripe flip is HOLD/.test(featureMap));
+ok('FEATURE_MAP shared bot + user phone', /\+12138653024/.test(featureMap) && /Not a per-user Treena DID/.test(featureMap));
 ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap) && /no `#name`/.test(featureMap));
 ok('FEATURE_MAP name collected on start and settings copy', /name lives in account settings after signup/.test(featureMap) && featureMap.includes('| `/start.html` | `public/start.html` | shipped |') && /\| post-pay-name \| account \|.*\| shipped \|/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
@@ -789,7 +839,7 @@ ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(feature
 
 const agents = read('AGENTS.md');
 ok('AGENTS.md points Cloud Agents at FEATURE_MAP + npm run verify', /FEATURE_MAP/.test(agents) && /npm run verify/.test(agents) && agents.includes(IMESSAGE_LINE));
-ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents));
+ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents) && /\/login/.test(agents) && /\+12138653024/.test(agents));
 ok('CI runs npm run verify', /npm run verify/.test(read('.github/workflows/ci.yml')));
 
 const liveOrigin = String(process.env.VERIFY_LIVE_ORIGIN || '').trim().replace(/\/+$/, '');

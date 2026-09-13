@@ -18,6 +18,21 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # CALL_AGENT_SYNC_URL=https://hidden-beacon-080.fly.dev/accounts/sync
 # PUBLIC_BASE_URL=https://hidden-beacon-080.fly.dev
 
+# Shared Treena iMessage bot (Linq sandbox DID; ride until ~Sep 18).
+# Ops may swap later. Do not invent a different number.
+PUBLIC_TREENA_IMESSAGE_E164=+12138653024
+# LINQ_FROM_E164=+12138653024
+
+# Google OAuth + Apple sign-in. Leave unset locally; start URLs name missing keys.
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# APPLE_CLIENT_ID=
+# APPLE_TEAM_ID=
+# APPLE_KEY_ID=
+# APPLE_PRIVATE_KEY=
+# AUTH_SESSION_SECRET=
+# AUTH_PUBLIC_ORIGIN=https://usetreena.com
+
 # Optional. npm run verify GET {origin}/ for live SHA + iMessage subhead.
 # Unset in default CI.
 # VERIFY_LIVE_ORIGIN=https://usetreena.com
