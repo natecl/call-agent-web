@@ -17,3 +17,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # ACCOUNT_SYNC_SECRET=replace_me
 # CALL_AGENT_SYNC_URL=https://hidden-beacon-080.fly.dev/accounts/sync
 # PUBLIC_BASE_URL=https://hidden-beacon-080.fly.dev
+
+# Optional. npm run verify GET {origin}/ for live SHA + iMessage subhead.
+# Unset in default CI.
+# VERIFY_LIVE_ORIGIN=https://usetreena.com
