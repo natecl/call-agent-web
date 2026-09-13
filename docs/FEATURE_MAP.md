@@ -4,17 +4,18 @@ This file maps the public landing as a product surface. It is not an implementat
 
 ## Account + Stripe TEST paywall
 
-Home is HOLD. `public/index.html` layout, motion, copy, assets, `public/app.js`, hero, demo, and home CTAs are unchanged. Do not add “Text Treena” on home. The existing L2 public CTA on home stays as-is.
+TRE-22 unfroze home. Pixel owns restyle. This map does not invent a home redesign. Keep “Your phone call agent, right in iMessage.”
 
-TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription. Fly `users` is the runtime account kickoff reads. This website POSTs signed TRE-20 Customer JSON to Fly `POST /accounts/sync`; it does not write Neon. Do not claim that writer live. Pages deploy held.
+TRE-17 supersedes the TRE-6 stub path for **Stripe TEST** only. `sk_test_` stays on Cloudflare Pages Functions. The browser never holds the secret. Live Stripe (`sk_live_`), KYC, and a full auth stack are still out of scope. The TEST account record is a Stripe Customer + subscription. Fly `users` is the runtime account kickoff reads. This website POSTs signed TRE-20 Customer JSON to Fly `POST /accounts/sync`; it does not write Neon. Do not claim Fly sync live. Dashboard HTML may already be on Pages GET `/dashboard`; status stays **sot-ready** (Cap has not GO’d product-live).
 
 | route | file | status | notes |
 | --- | --- | --- | --- |
+| `/` | `public/index.html` | shipped | TRE-22 unfrozen. Keep “Your phone call agent, right in iMessage.” Live `/` SHA-256 `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77` (~8697 B). Pixel owns restyle. |
 | `/pricing.html` | `public/pricing.html` | shipped | Headline is Pricing. Two locked plan cards. Card CTAs go to account with `?plan=`. Do not jump to Text Treena from a pricing card. Directory index: `public/pricing/index.html` (`/pricing/`). |
-| `/account.html` | `public/account.html` | shipped | Create-account form: **email + password required** (no name on this page — name lives on `/start` after TEST checkout), **phone required (E.164)**, account-level retain checkbox default off. No OAuth/provider sign-in (parked). Password not sent to Stripe. Stripe Customer at checkout (TEST). Directory index: `public/account/index.html` (`/account/`). |
+| `/account.html` | `public/account.html` | shipped | Create-account form: **email + password required** (no `#name` on this page), **phone required (E.164)**, account-level retain checkbox default off. Copy: **name lives in account settings after signup.** Name is collected on `/start` after TEST checkout. No OAuth/provider sign-in (parked). Password not sent to Stripe. Stripe Customer at checkout (TEST). Directory index: `public/account/index.html` (`/account/`). |
 | `/pay.html` | `public/pay.html` | shipped | Confirms selected plan (price + minutes + overage). Pay redirects to Stripe Checkout (TEST). No trial. Secret is not in the page. Directory index: `public/pay/index.html` (`/pay/`). |
-| `/start.html` | `public/start.html` | shipped | Post-pay name gate after `GET /api/session` verifies a paid TEST Checkout Session. If Stripe Customer.name is missing, required name form (not on `/account`). Name → `POST /api/account` → Stripe Customer.name → HMAC sync `first_name` + `prefs.full_name`. Then `/dashboard`. Text Treena still uses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
-| `/dashboard.html` | `public/dashboard.html` | sot-ready | Four sections after name: usage (minutes + call count), billing TEST badge, Linq L1 threads, agent observability (`call_report` / transcript when retained). HMAC GET Fly `/accounts/dashboard`. Empty thread/obs arrays if `ACCOUNT_SYNC_SECRET` is missing. In this tree, not live Pages. Directory index: `public/dashboard/index.html` (`/dashboard/`). |
+| `/start.html` | `public/start.html` | shipped | Post-pay name gate after `GET /api/session` verifies a paid TEST Checkout Session. If Stripe Customer.name is missing, required name form (not on `/account`). Copy: **name lives in account settings after signup.** Name → `POST /api/account` → Stripe Customer.name → HMAC sync `first_name` + `prefs.full_name`. Then `/dashboard`. Text Treena still uses the coming-soon dialog. Directory index: `public/start/index.html` (`/start/`). |
+| `/dashboard.html` | `public/dashboard.html` | sot-ready | Present on Pages GET `/dashboard`. Cap has not GO’d product-live. Four sections after name: usage (minutes + call count), billing TEST badge, Linq L1 threads, agent observability (`call_report` / transcript when retained). Copy: **name lives in account settings after signup.** HMAC GET Fly `/accounts/dashboard`. Empty thread/obs arrays if `ACCOUNT_SYNC_SECRET` is missing. Directory index: `public/dashboard/index.html` (`/dashboard/`). |
 
 Order: landing (untouched) → account + pay (Stripe TEST, no trial) → `/start` name (if missing) → `/dashboard`. Text Treena is still coming soon.
 
@@ -25,9 +26,9 @@ Locked plans only:
 
 No trial. No free forever. No annual/team/enterprise.
 
-Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`, `POST /api/account`, `GET /api/dashboard`, `GET /api/billing`. On `checkout.session.completed`, `customer.updated`, subscription updated/deleted, and post-pay name save, Pages Functions HMAC-POST signed JSON to Fly `POST /accounts/sync` (`ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `GET /accounts/dashboard?phone=` (HMAC over the E.164 phone query value). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). Do not claim live. Pages deploy is held.
+Pages Functions (TEST): `POST /api/checkout`, `GET /api/session`, `GET /api/config`, `POST /api/webhook`, `POST /api/account`, `GET /api/dashboard`, `GET /api/billing`. On `checkout.session.completed`, `customer.updated`, subscription updated/deleted, and post-pay name save, Pages Functions HMAC-POST signed JSON to Fly `POST /accounts/sync` (`ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `GET /accounts/dashboard?phone=` (HMAC over the E.164 phone query value). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Verifier: `npm run verify` (`scripts/verify-paywall.mjs`). CI runs that command. Optional `VERIFY_LIVE_ORIGIN` GETs live `/` for SHA + iMessage subhead. Do not claim Fly sync live. Cap has not GO’d dashboard product-live.
 
-Out of scope: live Stripe, KYC, OAuth/provider sign-in, magic-link auth backend, Fly deploy / live Machines, Linq live messaging, L1 redial. Account form collects password UI-only until auth backend ships. Name is not on signup — it is required on `/start` after TEST pay. Neon writes from this website are out of scope.
+Out of scope: live Stripe, KYC, OAuth/provider sign-in, magic-link auth backend, Fly deploy / live Machines, Linq live messaging, L1 redial. Account form collects password UI-only until auth backend ships. Name is not on signup — it is required on `/start` after TEST pay, and copy on `/account`, `/start`, and `/dashboard` says name lives in account settings after signup. Neon writes from this website are out of scope. Hangup wipe, Fly accounts, and `verify-accounts` live in `natecl/call-agent`.
 
 ## Privacy
 
@@ -53,15 +54,15 @@ Same chrome: Treena wordmark, nav, Text Treena, footer. Visual SoT is the existi
 
 Old Ring five-claim blocks (outbound DID, audio for task+debug, AI disclosure, processors, no selling) are superseded. Do not invent extra legal claims: no HIPAA, no “we never store” without the opt-in exception already in this lock, not Signal-private, not end-to-end encrypted.
 
-Home is HOLD. `public/index.html`, `public/app.js`, hero, demo, motion, and the iMessage line are unchanged.
+TRE-22 unfroze home. Keep “Your phone call agent, right in iMessage.” Pixel owns restyle. Cloud Agents: `AGENTS.md`.
 
 ## Status words
 
 This map uses exactly three status values.
 
-**shipped.** Present in this repo and on the live Pages host in a form that already satisfies that capability's SoT intent. Home layout, motion, and copy remain HOLD for restyle. HOLD is not a status word. A dark placeholder page is not the product landing.
+**shipped.** Present in this repo and on the live Pages host in a form that already satisfies that capability's SoT intent. TRE-22 unfroze home; Pixel owns restyle. This map does not invent a home redesign. Keep “Your phone call agent, right in iMessage.” A dark placeholder page is not the product landing.
 
-**sot-ready.** Astra SoT specifies it in the attached overall-page frame, in `relay-agent-handoff.md`, in the Nathan-via-Cap brand lock this session, or in more than one of those. Approved design exists. It is not implemented in this repo or on the live host.
+**sot-ready.** Astra SoT specifies it in the attached overall-page frame, in `relay-agent-handoff.md`, in the Nathan-via-Cap brand lock this session, or in more than one of those. Approved design exists. Cap has not GO’d a product-live claim. Dashboard HTML present on Pages GET `/dashboard` stays sot-ready until Cap GO. Fly sync stays sot-ready — do not claim Fly sync live.
 
 **not-started.** Not implemented. SoT does not specify it enough to build without inventing.
 
@@ -71,21 +72,21 @@ The live consumer URLs are `https://usetreena.com` and `https://www.usetreena.co
 
 The file that ships on that host is `public/index.html`. `README.md` is in the repo and is not served.
 
-`public/index.html` is 8610 bytes. The title is `Treena — You text. We call. Life moves.` The h1 is "You text. We call. Life moves." The page is the Treena product landing on Cloudflare Pages project `call-agent`. It is not the old 997-byte dark placeholder. The HTML contains Treena, "You text", "Watch a call", and "Life moves". It does not contain a `call-agent` h1 or TBD product-name copy, measured by reading the file this session.
+`public/index.html` is 8697 bytes. The title is `Treena — You text. We call. Life moves.` The h1 is "You text. We call. Life moves." The subhead includes “Your phone call agent, right in iMessage.” The page is the Treena product landing on Cloudflare Pages project `call-agent`. It is not the old 997-byte dark placeholder. The HTML contains Treena, "You text", "Watch a call", "Life moves", and the iMessage line. It does not contain a `call-agent` h1 or TBD product-name copy, measured by reading the file this session.
 
-Live `/` is byte-identical to `public/index.html`. Both have SHA-256 `9256e9774be8eef461c50dc14613e5304fcf9a26208456bf279896c674bc291b`, measured. Apex and `www` return HTTP 200 and that same HTML.
+Live `/` is byte-identical to `public/index.html`. Both have SHA-256 `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77`, measured. Apex and `www` return HTTP 200 and that same HTML. Optional `VERIFY_LIVE_ORIGIN` GET `/` re-checks that SHA and the iMessage subhead.
 
 A GET of `https://call-agent-7qt.pages.dev/anything-missing` returns HTTP 200 and that same HTML, measured. `public/404.html` is absent.
 
 The public brand is Treena, measured from Nathan via Cap this session and from the live HTML.
 
-The consumer home domain is `usetreena.com`. Apex and `www` are live on Cloudflare Pages project `call-agent`, measured. HTTPS GET of `https://usetreena.com` and `https://www.usetreena.com` returns HTTP 200 and the same 8610-byte HTML as `public/index.html`.
+The consumer home domain is `usetreena.com`. Apex and `www` are live on Cloudflare Pages project `call-agent`, measured. HTTPS GET of `https://usetreena.com` and `https://www.usetreena.com` returns HTTP 200 and the same 8697-byte HTML as `public/index.html`.
 
-The product landing is present. Home layout, motion, and copy remain HOLD for restyle. Correcting this map is not a redesign.
+The product landing is present. TRE-22 unfroze home. Pixel owns restyle. Correcting this map is not a redesign. Keep the iMessage subhead.
 
 The SoT landing is static HTML with no build step. Entry files in SoT are `index.html`, `style.css`, `app.js`, and `assets/`, measured from `relay-agent-handoff.md`. This repo has `public/index.html`, `public/style.css`, `public/app.js`, and `public/assets/`, measured by listing the workspace this session. The live HTML links `style.css` and `app.js`.
 
-The only file under `docs/` is this map. `relay-agent-handoff.md` is not in this git tree, measured. There are no Pixel files in git.
+The only file under `docs/` is this map. `AGENTS.md` at repo root points Cloud Agents at this map and `npm run verify`. `relay-agent-handoff.md` is not in this git tree, measured. There are no Pixel files in git.
 
 ## Capability registry
 
@@ -93,9 +94,9 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 
 | id | area | purpose | sot | repo | live | status | evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| host-product-landing | host | A visitor at the consumer URL sees the Treena product landing. | none | `public/index.html` is 8610 bytes. Title is `Treena — You text. We call. Life moves.` Nav, hero, demo, use-case band, and CTAs are present. It links `style.css` and `app.js`. | `https://usetreena.com`, `https://www.usetreena.com`, and `https://call-agent-7qt.pages.dev/` return the same 8610-byte HTML. | shipped | measured. Live GET `/` SHA-256 matches `public/index.html`. HTML contains Treena, "You text", "Watch a call", and "Life moves". It does not contain a `call-agent` h1 or TBD product-name copy. |
+| host-product-landing | host | A visitor at the consumer URL sees the Treena product landing. | none | `public/index.html` is 8697 bytes. Title is `Treena — You text. We call. Life moves.` Subhead includes “Your phone call agent, right in iMessage.” Nav, hero, demo, use-case band, and CTAs are present. It links `style.css` and `app.js`. | `https://usetreena.com`, `https://www.usetreena.com`, and `https://call-agent-7qt.pages.dev/` return the same 8697-byte HTML. SHA-256 `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77`. | shipped | measured. Live GET `/` SHA-256 matches `public/index.html`. TRE-22 unfroze home. HTML contains Treena, "You text", "Watch a call", "Life moves", and the iMessage line. It does not contain a `call-agent` h1 or TBD product-name copy. |
 | sot-static-entry | host | The SoT landing is static HTML with no build step. | Entry files are `index.html`, `style.css`, `app.js`, and `assets/`. | This repo has `public/index.html`, `public/style.css`, `public/app.js`, and `public/assets/`. | The live host serves that landing HTML and those linked files. | shipped | measured. `relay-agent-handoff.md` names those entry files. A workspace listing has those files. Live HTML links `style.css` and `app.js`. |
-| domain-usetreena | host | The consumer home domain is `usetreena.com`. | Apex ALIAS and www CNAME point at `call-agent-7qt.pages.dev` on Cloudflare Pages project `call-agent`. | This repo has no DNS config. | `https://usetreena.com` and `https://www.usetreena.com` return HTTP 200 and the same 8610-byte HTML as `public/index.html`. | shipped | measured. GET of both hostnames this session. SHA-256 matches `public/index.html`. www CNAME is `call-agent-7qt.pages.dev`. |
+| domain-usetreena | host | The consumer home domain is `usetreena.com`. | Apex ALIAS and www CNAME point at `call-agent-7qt.pages.dev` on Cloudflare Pages project `call-agent`. | This repo has no DNS config. | `https://usetreena.com` and `https://www.usetreena.com` return HTTP 200 and the same 8697-byte HTML as `public/index.html`. | shipped | measured. GET of both hostnames this session. SHA-256 `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77` matches `public/index.html`. www CNAME is `call-agent-7qt.pages.dev`. |
 | brand-public-treena | brand | The public brand is Treena. | Public brand is Treena. Locked. | `README.md` names Treena. `public/index.html` wordmark, title, CTAs, and iMessage contact are Treena. | The live page uses the same Treena copy. There is no TBD product-name copy. | shipped | measured. Nathan via Cap this session locked Treena. Live HTML contains Treena and does not say product name is TBD. |
 | brand-relay-codename | brand | Relay is internal and legacy SoT. | Relay is the internal and legacy SoT codename. SoT mock wordmark lettering and "Text Relay" CTA copy may still use Relay-family strings. Those strings are not the public brand. | absent as a live name. Public CTAs say "Text Treena". | absent as a live name | shipped | measured. Nathan via Cap this session. Live HTML and `public/index.html` do not contain "Text Relay" or a `call-agent` h1. |
 | brand-sot-wordmark | brand | The SoT landing shows a left nav wordmark. | The overall-page frame shows a left wordmark. The public shipping wordmark is Treena. Exact letter forms in that PNG may still be Relay-family. | `public/index.html` left nav wordmark is the text Treena. | The live page shows the same Treena wordmark. | shipped | measured. The attached frame shows a left wordmark. Live HTML wordmark is Treena. Exact PNG letter spelling is inferred. |
@@ -118,7 +119,7 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | use-case-rescheduling | use-cases | The use-case carousel includes a rescheduling scene. | `relay-agent-handoff.md` names rescheduling. The attached crop does not show art, headline, or subcopy. | `public/app.js` has Rescheduling / `better time`. Art is `public/assets/reschedule-retina-art.png`. | The live page loads that script and asset. | shipped | measured. `relay-agent-handoff.md` lists rescheduling. `public/app.js` and `public/assets/` include it. |
 | use-case-business-hours | use-cases | The use-case carousel includes a business hours scene. | `relay-agent-handoff.md` names business hours. The attached crop does not show art, headline, or subcopy. | `public/app.js` has Business hours / `Still open?` Art is `public/assets/hours-retina-art.png`. | The live page loads that script and asset. | shipped | measured. `relay-agent-handoff.md` lists business hours. `public/app.js` and `public/assets/` include it. |
 | use-case-cycle | use-cases | A visitor sees a carousel of five illustrated use cases in the lower band. | The band is a carousel of dinner, haircut, stock, rescheduling, and business hours. Cycle timing is about 2.5s with smooth transitions. It is not a second chat or call demo. | `public/app.js` cycles those five scenes every 2500ms. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names the five-scene carousel and the 2.5s timing. `resetCycle()` uses 2500. |
-| motion-viewport-playback | motion | Viewport playback advances one demo at a time. | `relay-agent-handoff.md` names viewport-aware playback. One demo advances at a time. | `public/app.js` `syncPlaybackFocus()` gives playback to the demo or the use-case band, not both. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names viewport-aware playback and one-at-a-time advance. `public/app.js` implements that focus. Home motion remains HOLD for restyle. |
+| motion-viewport-playback | motion | Viewport playback advances one demo at a time. | `relay-agent-handoff.md` names viewport-aware playback. One demo advances at a time. | `public/app.js` `syncPlaybackFocus()` gives playback to the demo or the use-case band, not both. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names viewport-aware playback and one-at-a-time advance. `public/app.js` implements that focus. TRE-22 unfroze home; Pixel owns restyle. |
 | motion-reduced-motion | motion | A visitor who prefers reduced motion sees a static path. | `relay-agent-handoff.md` names a reduced-motion static path. | `public/app.js` and `public/style.css` read `prefers-reduced-motion`. | The live page loads those files. | shipped | measured. `relay-agent-handoff.md` names the reduced-motion path. Repo files implement it. |
 | motion-scene-transitions | motion | A visitor sees scene cycle transitions in the use-case band. | `relay-agent-handoff.md` names scene cycle and transitions. | `public/app.js` `showScene()` adds `scene-enter` / `scene-exit`. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names scene cycle and transitions. `public/app.js` has those classes. |
 | motion-preload | motion | Autoplay waits until images and fonts are loaded. | `relay-agent-handoff.md` names image and font load before autoplay. | `public/app.js` waits on `document.fonts.ready` and image `decode()` before `resetCycle()`. | The live page loads that script. | shipped | measured. `relay-agent-handoff.md` names that preload. `public/app.js` does that wait. |
@@ -129,14 +130,14 @@ The Capability registry is a lookup table of landing capabilities. Each row is o
 | cta-coming-soon-dialog | cta-integration | A visitor sees a coming-soon dialog when the message URL is empty. | Empty `RELAY_MESSAGE_URL` opens a coming-soon dialog. | `public/index.html` has `#contact-dialog`. Copy is "Treena’s number is coming soon." | The live page has the same dialog. | shipped | measured. `relay-agent-handoff.md` names that dialog. Live HTML contains that copy. |
 | cta-no-phone-numbers | cta-integration | The landing does not present a product phone number. | `relay-agent-handoff.md` records that phone numbers must not be invented. | `public/index.html` has no product phone number. The dialog says the number is coming soon. | The live landing has the same absence. | shipped | measured. `relay-agent-handoff.md` records that phone numbers must not be invented. Live HTML has none. |
 | cta-no-backend | cta-integration | A visitor cannot sign up, start a call, or reach a calling backend from this landing. | `relay-agent-handoff.md` states that the landing has no backend, signup, or calling. | Home has no signup form and no calling API. Text Treena opens the coming-soon dialog. Stripe TEST checkout is other routes (TRE-17). | The live home has the same absence. | shipped | measured. Live home HTML has no signup form and no calling wiring. |
-| account-fly-sync | account | Website POSTs signed TRE-20 account JSON to Fly `POST /accounts/sync`. Fly is the sole writer of `users`. Web does not write Neon. | Nathan lock sync B. call-agent `docs/accounts.md`. | `functions/_lib/sync.js` HMAC `ACCOUNT_SYNC_SECRET` (`X-Account-Sync-Signature: sha256=<hex>`). URL is `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL/accounts/sync`. Map: Customer `phone` → `phone`; optional `name` → `first_name` (first token) + `prefs.full_name` (signup does not collect name; post-pay `/start` does); `id` → `stripe_customer_id`; `metadata[plan]` → `plan`; `metadata[minutes]` → `minutes_included`; `retain_after_call=on` → `retain_call_artifacts`. `minutes_used` is omitted (Fly omit-preserve; explicit `0` would write 0). Triggers: `checkout.session.completed`, `customer.updated`, `customer.subscription.updated` / `deleted`, `POST /api/account` (Stripe first, then Fly). Retry 5xx. | Do not claim live. Pages deploy held. | sot-ready | measured. `npm run verify` / `verify-paywall` TEST path. In this tree, not on the live Pages host. No Neon. |
-| post-pay-name | account | After TEST checkout, `/start` requires a name before dashboard if Stripe Customer.name / first_name is missing. | Cap accounts climb PR2. | `public/start.html` `#start-name` / `#name`. `POST /api/account` writes Stripe Customer.name then HMAC sync. `/account.html` has no `#name`. | Do not claim live. Pages deploy held. | sot-ready | measured. `npm run verify`. In this tree, not on the live Pages host. |
-| account-fly-dashboard | account | Website HMAC-GETs Fly `GET /accounts/dashboard?phone=`. Web does not open Neon or R2. | call-agent PR #35. | `functions/_lib/sync.js` `getAccountDashboard`. HMAC over the E.164 phone query value (`X-Account-Sync-Signature`). URL derived from sync origin. Missing `ACCOUNT_SYNC_SECRET` returns empty `threads` / `calls`. | Do not claim live. Pages deploy held. | sot-ready | measured. `npm run verify` mocked Fly GET. In this tree, not on the live Pages host. |
-| dashboard-usage | dashboard | Dashboard shows minutes included / used and call count. | Cap accounts climb PR2. | `public/dashboard.html` `#usage`. Used stays 0 until minutes ledger ships. Copy: usage totals update after calls. | Do not claim live. Pages deploy held. | sot-ready | measured. In this tree, not on the live Pages host. |
-| dashboard-billing-test | dashboard | Dashboard billing is Stripe TEST only, with a TEST badge and no real charge. | Cap accounts climb PR2. | `functions/api/billing.js` + dashboard `#billing` `.test-badge`. Rejects `cs_live_` / `sk_live_`. | Do not claim live. Pages deploy held. | sot-ready | measured. Stripe TEST path. No live keys. |
-| dashboard-threads | dashboard | Dashboard lists Linq L1 threads. | Cap accounts climb PR2. | `public/dashboard.html` `#threads`. Empty: “No threads yet. Text Treena after your number is live.” | Do not claim live. Pages deploy held. Number still coming soon. | sot-ready | measured. In this tree, not on the live Pages host. |
-| dashboard-observability | dashboard | Dashboard shows retained `call_report` / transcript. Default wipe stays empty. | Cap accounts climb PR2. | `public/dashboard.html` `#observability`. Empty: “Call details weren’t saved. That’s the default. Turn on save in account settings to keep transcripts and reports.” | Do not claim live. Pages deploy held. | sot-ready | measured. In this tree, not on the live Pages host. |
-| visual-system | visual-system | The SoT landing uses a white canvas, bold black Inter headings, blue filled CTAs, a pearl-gray demo stage, cartoonish illustrations, handwritten notes, vector ink arrows, a handset, a cord, and restrained pastels. | The frame has a yellow underline and a peach word highlight. First-session handoff names the typeface Inter and the direction useful, simple, warm, and polished. `relay-agent-handoff.md` names cartoonish illustrations, handwritten notes, and vector ink arrows, a handset, and a cord. The white answer and caption bubble is approved. | `public/style.css` sets `body` background `#fff` and Inter. `public/assets/` has illustration PNGs and `InterVariable.woff2`. | The live host is that light landing, not a dark placeholder. | shipped | measured. Live CSS is white canvas. First-session handoff names Inter. Home visual restyle remains HOLD. |
+| account-fly-sync | account | Website POSTs signed TRE-20 account JSON to Fly `POST /accounts/sync`. Fly is the sole writer of `users`. Web does not write Neon. | Nathan lock sync B. call-agent `docs/accounts.md`. | `functions/_lib/sync.js` HMAC `ACCOUNT_SYNC_SECRET` (`X-Account-Sync-Signature: sha256=<hex>`). URL is `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL/accounts/sync`. Map: Customer `phone` → `phone`; optional `name` → `first_name` (first token) + `prefs.full_name` (signup does not collect name; post-pay `/start` does); `id` → `stripe_customer_id`; `metadata[plan]` → `plan`; `metadata[minutes]` → `minutes_included`; `retain_after_call=on` → `retain_call_artifacts`. `minutes_used` is omitted (Fly omit-preserve; explicit `0` would write 0). Triggers: `checkout.session.completed`, `customer.updated`, `customer.subscription.updated` / `deleted`, `POST /api/account` (Stripe first, then Fly). Retry 5xx. | Do not claim Fly sync live. Writer is not product-live. | sot-ready | measured. `npm run verify` / `verify-paywall` TEST path. No Neon. Fly accounts live in `natecl/call-agent`. |
+| post-pay-name | account | After TEST checkout, `/start` requires a name before dashboard if Stripe Customer.name / first_name is missing. Copy on `/account`, `/start`, and `/dashboard` says name lives in account settings after signup. | Cap accounts climb PR2. Both: collect name on `/start` and settings copy. | `public/start.html` `#start-name` / `#name`. `POST /api/account` writes Stripe Customer.name then HMAC sync. `/account.html` has no `#name`. Copy: “Name lives in account settings after signup.” | GET `/start` serves the name page. `/account` has no `#name`. Fly sync of that name stays sot-ready. | shipped | measured. `npm run verify`. Live GET `/start` has `#name`. Settings copy is on account, start, and dashboard. |
+| account-fly-dashboard | account | Website HMAC-GETs Fly `GET /accounts/dashboard?phone=`. Web does not open Neon or R2. | call-agent PR #35. | `functions/_lib/sync.js` `getAccountDashboard`. HMAC over the E.164 phone query value (`X-Account-Sync-Signature`). URL derived from sync origin. Missing `ACCOUNT_SYNC_SECRET` returns empty `threads` / `calls`. | HTML may already be on Pages GET `/dashboard`. Cap not GO for product-live. Do not claim Fly-backed dashboard live. | sot-ready | measured. `npm run verify` mocked Fly GET. Present on Pages. Cap has not GO’d. |
+| dashboard-usage | dashboard | Dashboard shows minutes included / used and call count. | Cap accounts climb PR2. | `public/dashboard.html` `#usage`. Used stays 0 until minutes ledger ships. Copy: usage totals update after calls. Name lives in account settings after signup. | Present on Pages GET `/dashboard`. Cap not GO for product-live. | sot-ready | measured. HTML on Pages. Cap has not GO’d. |
+| dashboard-billing-test | dashboard | Dashboard billing is Stripe TEST only, with a TEST badge and no real charge. | Cap accounts climb PR2. | `functions/api/billing.js` + dashboard `#billing` `.test-badge`. Rejects `cs_live_` / `sk_live_`. | Present on Pages GET `/dashboard`. Cap not GO for product-live. No live keys. | sot-ready | measured. Stripe TEST path. HTML on Pages. Cap has not GO’d. |
+| dashboard-threads | dashboard | Dashboard lists Linq L1 threads. | Cap accounts climb PR2. | `public/dashboard.html` `#threads`. Empty: “No threads yet. Text Treena after your number is live.” | Present on Pages GET `/dashboard`. Cap not GO for product-live. Number still coming soon. | sot-ready | measured. HTML on Pages. Cap has not GO’d. |
+| dashboard-observability | dashboard | Dashboard shows retained `call_report` / transcript. Default wipe stays empty. | Cap accounts climb PR2. Hangup wipe is call-agent. | `public/dashboard.html` `#observability`. Empty: “Call details weren’t saved. That’s the default. Turn on save in account settings to keep transcripts and reports.” | Present on Pages GET `/dashboard`. Cap not GO for product-live. | sot-ready | measured. HTML on Pages. Cap has not GO’d. |
+| visual-system | visual-system | The SoT landing uses a white canvas, bold black Inter headings, blue filled CTAs, a pearl-gray demo stage, cartoonish illustrations, handwritten notes, vector ink arrows, a handset, a cord, and restrained pastels. | The frame has a yellow underline and a peach word highlight. First-session handoff names the typeface Inter and the direction useful, simple, warm, and polished. `relay-agent-handoff.md` names cartoonish illustrations, handwritten notes, and vector ink arrows, a handset, and a cord. The white answer and caption bubble is approved. | `public/style.css` sets `body` background `#fff` and Inter. `public/assets/` has illustration PNGs and `InterVariable.woff2`. | The live host is that light landing, not a dark placeholder. | shipped | measured. Live CSS is white canvas. First-session handoff names Inter. TRE-22 unfroze home; Pixel owns restyle. Keep the iMessage subhead. |
 | sot-overall-page-frame | sot-assets | The approved overall-page frame is the composition source for this map. | The attached file is `09-illustrated-use-cases.png`. The PNG is not in git. | absent | absent | sot-ready | measured. The parent task attached the PNG. The workspace file list has no SoT image. |
 | sot-handoff-md | sot-assets | `relay-agent-handoff.md` is a source for this map. | That file is measured handoff text from the parent task. It is not in this git tree. | absent | absent | sot-ready | measured. The parent task named that file. A workspace listing has no copy of it. |
 
@@ -148,7 +149,7 @@ The live consumer host is `https://usetreena.com`, with `https://www.usetreena.c
 
 The SoT landing is static HTML with no build step. Entry files are `index.html`, `style.css`, `app.js`, and `assets/`, measured from `relay-agent-handoff.md`. This repo has those files under `public/`.
 
-The consumer home domain is `usetreena.com`. It is live on Cloudflare Pages project `call-agent`. Status is shipped. Home layout, motion, and copy remain HOLD for restyle.
+The consumer home domain is `usetreena.com`. It is live on Cloudflare Pages project `call-agent`. Status is shipped. TRE-22 unfroze home. Pixel owns restyle. Keep the iMessage subhead.
 
 ### Nav
 
@@ -172,7 +173,7 @@ Two CTAs sit under the subhead, measured. The filled button is "Text Treena". Th
 
 "Watch a call" scrolls to the demo and replays it, measured from `public/app.js`.
 
-The repo and the live host have that hero, measured. Home copy remains HOLD for restyle.
+The repo and the live host have that hero, measured. TRE-22 unfroze home. Keep the iMessage subhead.
 
 ### Phone demo
 
@@ -190,7 +191,7 @@ The demo narrative in the frame is oat milk stock at Publix, measured. The visit
 
 The lower band is not a second chat or call demo, measured from `relay-agent-handoff.md`.
 
-The repo and the live host have that phone demo, measured. Home demo remains HOLD for restyle.
+The repo and the live host have that phone demo, measured. TRE-22 unfroze home. Pixel owns restyle.
 
 ### Use cases
 
@@ -204,7 +205,7 @@ The first illustrated scene in the frame is dinner, measured. The headline is "A
 
 The band is a carousel of those five illustrated scenes, measured from `relay-agent-handoff.md` and from `public/app.js`. Cycle timing is 2500ms. It is not a second functional demo.
 
-The repo and the live host have that use-case band, measured. Home band remains HOLD for restyle.
+The repo and the live host have that use-case band, measured. TRE-22 unfroze home. Pixel owns restyle.
 
 ### Motion
 
@@ -218,7 +219,7 @@ The repo and the live host have that use-case band, measured. Home band remains 
 - Viewport playback. One demo advances at a time.
 - Use-case cycle about 2.5s with smooth transitions.
 
-Those behaviors are in this registry. They are implemented in `public/app.js` and `public/style.css`, measured. Home motion remains HOLD for restyle.
+Those behaviors are in this registry. They are implemented in `public/app.js` and `public/style.css`, measured. TRE-22 unfroze home. Pixel owns restyle.
 
 ### Integration stubs
 
@@ -238,7 +239,7 @@ Pastels are restrained. A yellow underline and a peach word highlight appear in 
 
 First-session handoff names the visual direction useful, simple, warm, and polished.
 
-The live host is a white canvas with Inter and blue filled CTAs, measured from `public/style.css`. It is not a dark scaffold at `#0b0c0f`. Home visual restyle remains HOLD.
+The live host is a white canvas with Inter and blue filled CTAs, measured from `public/style.css`. It is not a dark scaffold at `#0b0c0f`. TRE-22 unfroze home. Pixel owns restyle.
 
 ### Brand
 
@@ -299,10 +300,10 @@ The overall-page frame is the attached PNG `09-illustrated-use-cases.png`, measu
 
 **Measured from this repo and the live host.**
 
-- `public/index.html` is the shipped home page. It is 8610 bytes. SHA-256 is `9256e9774be8eef461c50dc14613e5304fcf9a26208456bf279896c674bc291b`.
+- `public/index.html` is the shipped home page. It is 8697 bytes. SHA-256 is `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77`. TRE-22 unfroze home. Keep “Your phone call agent, right in iMessage.”
 - `https://usetreena.com`, `https://www.usetreena.com`, and `https://call-agent-7qt.pages.dev/` each return that HTML. Live `/` and an unknown path both return that HTML. HTTP 200.
 - The HTML contains Treena, "You text", "Watch a call", and "Life moves". It does not contain a `call-agent` h1 or TBD product-name copy.
-- Nav, hero, phone demo, use-case band, CTAs, and `public/app.js` are present. Home layout, motion, and copy remain HOLD for restyle.
+- Nav, hero, phone demo, use-case band, CTAs, and `public/app.js` are present. TRE-22 unfroze home. Pixel owns restyle. Keep the iMessage subhead.
 - `public/style.css`, `public/app.js`, and `public/assets/` are in this repo.
 - `relay-agent-handoff.md` is not in this git tree. README is not served. `public/404.html` is absent.
 

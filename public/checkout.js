@@ -446,7 +446,7 @@
         submit.textContent = 'Redirecting to Stripe…';
       }
       try {
-        // name is not collected on /account — lives in account settings / users row later
+        // name is not collected on /account — collected on /start; copy says it lives in account settings after signup
         const result = await api('/api/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { createHmac } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { createHash, createHmac } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +30,10 @@ import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
 import { onRequestGet as billingGet } from '../functions/api/billing.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const frozenHome = ['public/app.js'];
+const LIVE_HOME_SHA = '38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77';
+const LIVE_HOME_BYTES = 8697;
+const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
+const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
 
 function read(rel) {
@@ -45,14 +47,6 @@ function ok(name, cond, detail) {
   }
   failed += 1;
   console.error(`FAIL ${name}${detail ? ` — ${detail}` : ''}`);
-}
-
-function gitDiff(files) {
-  try {
-    return execFileSync('git', ['diff', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' });
-  } catch (error) {
-    return String(error.stdout || error.message || error);
-  }
 }
 
 function jsonResponse(data, status = 200) {
@@ -147,14 +141,7 @@ const testEnv = {
   STRIPE_PUBLISHABLE_KEY: 'pk_test_verifier',
 };
 
-ok('home animation behavior unchanged', gitDiff(frozenHome).trim() === '', gitDiff(frozenHome).slice(0, 400));
-// The only authorized homepage markup change is routing its existing CTAs to setup.
-const originalHome = execFileSync('git', ['show', 'HEAD:public/index.html'], { cwd: root, encoding: 'utf8' });
-const expectedHome = originalHome.replace(/(<nav aria-label="Main navigation">)(.*?)(<\/nav>)/s, (_, open, body, close) => {
-  const links = [...body.matchAll(/<a\b[^>]*>.*?<\/a>/gs)].map(match => match[0]);
-  return open + ['Pricing', 'Privacy', 'How it works', 'What it can do'].map(label => links.find(link => link.endsWith(`>${label}</a>`))).join('') + close;
-}).replace('</head>', (originalHome.includes('motion.css') ? '</head>' : '<link rel="stylesheet" href="motion.css?v=20260912-motion1">\n</head>')).replaceAll('<button class="button primary text-relay">Text Treena</button>', '<a class="button primary" href="account.html?plan=personal">Text Treena</a>');
-ok('home layout unchanged except authorized CTA destinations and transition stylesheet', read('public/index.html') === expectedHome);
+ok('home keeps iMessage line', read('public/index.html').includes(IMESSAGE_LINE));
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
@@ -185,7 +172,7 @@ const publicBlob = publicFiles.map(read).join('\n');
 ok('no stub banners in checkout pages', !/Stub —/.test(read('public/account.html') + read('public/pay.html') + read('public/start.html')));
 ok('no Stripe secret in public/', !/sk_test_|sk_live_|whsec_/.test(publicBlob));
 ok('no live publishable key in public/', !/pk_live_/.test(publicBlob));
-ok('home does not restyle via this change', /You text\./.test(read('public/index.html')) && /Watch a call/.test(read('public/index.html')));
+ok('home still has You text / Watch a call', /You text\./.test(read('public/index.html')) && /Watch a call/.test(read('public/index.html')));
 
 const pricing = read('public/pricing.html') + read('public/pricing/index.html');
 ok('pricing has Personal $20', /Personal/.test(pricing) && /\$20/.test(pricing) && /30 connected min/.test(pricing) && /\$0\.15/.test(pricing));
@@ -626,7 +613,10 @@ try {
 
 ok('first-time account continue still goes to pay', /location\.href = href\('pay\.html'/.test(read('public/checkout.js')));
 ok('signup does not collect name', !/id="name"/.test(read('public/account.html')) && /name is not collected on \/account/.test(read('public/checkout.js')));
-ok('home still has frozen iMessage line', /Your phone call agent, right in iMessage/.test(read('public/index.html')));
+ok('home still has iMessage line in index', read('public/index.html').includes(IMESSAGE_LINE));
+ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
+ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
+ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
 ok('OAuth provider sign-in absent', !/accounts\.google|Sign in with Google|oauth2/i.test(publicBlob + functionsBlob));
 
 const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
@@ -778,21 +768,46 @@ ok('privacy chrome still Text Treena', /Text Treena/.test(privacy) && /class="[^
 ok('privacy directory index points How it works at home', /href="\.\.\/index\.html#how-it-works"/.test(read('public/privacy/index.html')));
 
 const featureMap = read('docs/FEATURE_MAP.md');
+ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
+ok('FEATURE_MAP live home SHA is 8697-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8697/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap));
+ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
-ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap));
+ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap) && /no `#name`/.test(featureMap));
+ok('FEATURE_MAP name collected on start and settings copy', /name lives in account settings after signup/.test(featureMap) && featureMap.includes('| `/start.html` | `public/start.html` | shipped |') && /\| post-pay-name \| account \|.*\| shipped \|/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP records Fly account sync', featureMap.includes('| account-fly-sync |') && /ACCOUNT_SYNC_SECRET/.test(featureMap) && /accounts\/sync/.test(featureMap));
-ok('FEATURE_MAP Fly sync is sot-ready / not live', /\| account-fly-sync \| account \|.*\| sot-ready \|/.test(featureMap) && /Do not claim live/.test(featureMap) && /Pages deploy held/.test(featureMap));
+ok('FEATURE_MAP Fly sync is sot-ready / not live', /\| account-fly-sync \| account \|.*\| sot-ready \|/.test(featureMap) && /Do not claim Fly sync live/.test(featureMap) && !/Pages deploy held/.test(featureMap) && !/not on the live Pages host/.test(featureMap) && !/not live Pages/.test(featureMap));
 ok('FEATURE_MAP web does not write Neon', /does not write Neon/.test(featureMap) && /NEON_DATABASE_URL/.test(featureMap) && /sole writer of `users`/.test(featureMap));
 ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
 ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
 ok('FEATURE_MAP privacy locked copy is the live page', /locked copy.*is live/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
 ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
-ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
-ok('FEATURE_MAP marks dashboard sot-ready / not live', featureMap.includes('| `/dashboard.html` | `public/dashboard.html` | sot-ready |') && /Do not claim live/.test(featureMap) && /Pages deploy held/.test(featureMap));
+ok('FEATURE_MAP marks dashboard sot-ready on Pages', featureMap.includes('| `/dashboard.html` | `public/dashboard.html` | sot-ready |') && /Present on Pages GET `\/dashboard`/.test(featureMap) && /Cap has not GO/.test(featureMap) && /Cap not GO for product-live/.test(featureMap));
 ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
 ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(featureMap) && !/`minutes_used` is 0/.test(featureMap));
+
+const agents = read('AGENTS.md');
+ok('AGENTS.md points Cloud Agents at FEATURE_MAP + npm run verify', /FEATURE_MAP/.test(agents) && /npm run verify/.test(agents) && agents.includes(IMESSAGE_LINE));
+ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents));
+ok('CI runs npm run verify', /npm run verify/.test(read('.github/workflows/ci.yml')));
+
+const liveOrigin = String(process.env.VERIFY_LIVE_ORIGIN || '').trim().replace(/\/+$/, '');
+if (!liveOrigin) {
+  console.log('ok  live GET / skipped (VERIFY_LIVE_ORIGIN unset; default CI path)');
+} else {
+  try {
+    const res = await fetch(`${liveOrigin}/`);
+    const body = Buffer.from(await res.arrayBuffer());
+    const sha = createHash('sha256').update(body).digest('hex');
+    const text = body.toString('utf8');
+    ok('live GET / is HTTP 200', res.status === 200);
+    ok('live GET / SHA matches FEATURE_MAP home', sha === LIVE_HOME_SHA && body.length === LIVE_HOME_BYTES, `got ${body.length} B ${sha}`);
+    ok('live GET / has iMessage subhead', text.includes(IMESSAGE_LINE));
+  } catch (error) {
+    ok('live GET / via VERIFY_LIVE_ORIGIN', false, error.message);
+  }
+}
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
 if (!secret) {

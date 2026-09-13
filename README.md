@@ -4,13 +4,15 @@ Public landing for **Treena** (https://usetreena.com).
 
 Hosted on Cloudflare Pages project `call-agent`. Source of truth is Nathan’s Astra static landing (localhost:4173 / `outputs/relay`), Relay→Treena rename applied. Do not restyle from the Pages screenshot rebuild.
 
-Landing capability map: [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md).
+Landing capability map: [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md). Cloud Agents: [`AGENTS.md`](AGENTS.md). Verifier: `npm run verify` (GitHub Actions `ci`).
+
+TRE-22 unfroze home. Pixel owns restyle. Keep “Your phone call agent, right in iMessage.” Live `/` SHA-256 `38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77` (~8697 B).
 
 ## Stripe TEST paywall
 
-Flow: landing → `/pricing` → `/account` (email + E.164 phone + account-level retain opt-in, default off, persists with login) → `/pay` → Stripe Checkout (TEST) → `/start` (name if missing) → `/dashboard`. No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only. Privacy default-wipe policy is documented in FEATURE_MAP as sot-ready; the privacy page claim is gated / not-shipped until call-agent hangup delete matches. Hangup wipe is TRE-23 on `natecl/call-agent`, not this repo.
+Flow: landing (TRE-22 unfrozen) → `/pricing` → `/account` (email + password + E.164 phone + account-level retain opt-in, default off; **no name field**; copy: name lives in account settings after signup) → `/pay` Stripe Checkout (TEST) → `/start` (collect name if missing; same settings copy) → `/dashboard` (HTML may already be on Pages; **sot-ready**, Cap has not GO’d product-live). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only. Privacy page is shipped on web. Hangup wipe is TRE-23 on `natecl/call-agent`, not this repo.
 
-The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, and `/api/billing` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim that writer live. Pages deploy is held unless Cap already ordered it.
+The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, and `/api/billing` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim Fly sync live.
 
 ### Local
 
@@ -20,7 +22,8 @@ The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/a
 4. Optional: `ACCOUNT_SYNC_SECRET` (same value as Fly) and `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL` for signed `POST /accounts/sync` and HMAC `GET /accounts/dashboard`.
 5. `npm install`
 6. `npm run verify`
-7. `npm run dev` then open `/pricing`.
+7. Optional live host check: `VERIFY_LIVE_ORIGIN=https://usetreena.com npm run verify` (GET `/` SHA + iMessage subhead). Unset is the default CI path.
+8. `npm run dev` then open `/pricing`.
 
 Test card: `4242 4242 4242 4242`, any future expiry, any CVC, any ZIP.
 
