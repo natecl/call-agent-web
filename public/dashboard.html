@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Your Treena dashboard — usage, billing, threads, and call details.">
+  <title>Dashboard — Treena</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
+  <link rel="preload" href="assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=20260912-paytest">
+  <link rel="stylesheet" href="subpages.css?v=20260913-dash1">
+<link rel="stylesheet" href="motion.css?v=20260912-system2">
+</head>
+<body class="subpage" data-page="dashboard" data-base=".">
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="phone" viewBox="0 0 24 24"><path d="M5 3h3l2 5-2 2c1.5 3 3 4.5 6 6l2-2 5 2v3c0 2-2 3-4 2C9 19 5 15 3 7c-1-2 0-4 2-4Z" fill="currentColor" stroke="none"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="nav">
+  <a class="brand" href="index.html" aria-label="Treena home">Treena</a>
+  <nav aria-label="Main navigation"><a href="pricing.html">Pricing</a><a href="privacy.html">Privacy</a><a href="index.html#how-it-works">How it works</a><a href="index.html#use-cases">What it can do</a></nav>
+  <a class="button primary" href="account.html?plan=personal">Text Treena</a>
+</header>
+<main id="main" class="page-main page-dashboard">
+  <div id="dash-pending" role="status" aria-live="polite">
+    <h1>Loading your dashboard</h1>
+    <p class="page-lead">Checking your Stripe TEST subscription…</p>
+  </div>
+  <div id="dash-ready" hidden>
+    <p class="eyebrow">Your account</p>
+    <h1>Hi, <span data-first-name>there</span>.</h1>
+    <p class="dash-note">This page shows usage, billing, threads, and call details iMessage can’t show.</p>
+    <div class="dash-grid">
+      <section class="dash-section" id="usage">
+        <h2>Usage</h2>
+        <div class="dash-metrics">
+          <p class="dash-metric"><span>Minutes included</span><strong data-minutes-included>0</strong></p>
+          <p class="dash-metric"><span>Minutes used</span><strong data-minutes-used>0</strong></p>
+          <p class="dash-metric"><span>Calls</span><strong data-call-count>0</strong></p>
+        </div>
+        <p class="dash-empty" data-usage-note>Usage totals update after calls.</p>
+      </section>
+      <section class="dash-section" id="billing">
+        <div class="dash-heading">
+          <h2>Billing</h2>
+          <span class="test-badge">TEST</span>
+        </div>
+        <div class="pay-summary">
+          <div class="pay-row"><span>Plan</span><strong data-plan-name>Personal</strong></div>
+          <div class="pay-row"><span>Monthly price</span><strong>$<span data-plan-price>20</span>/mo</strong></div>
+          <div class="pay-row"><span>Connected minutes</span><strong><span data-plan-minutes>30</span> min</strong></div>
+          <div class="pay-row"><span>Overage</span><strong>$<span data-plan-overage>0.15</span>/min</strong></div>
+          <div class="pay-row"><span>Status</span><strong data-billing-status>active</strong></div>
+          <div class="pay-row"><span>Subscription</span><strong data-subscription-id>—</strong></div>
+        </div>
+        <p class="stub-note">No real charge. Stripe TEST only.</p>
+      </section>
+      <section class="dash-section" id="threads">
+        <h2>Threads</h2>
+        <ul class="dash-list" id="thread-list" hidden></ul>
+        <p class="dash-empty" id="threads-empty">No threads yet. Text Treena after your number is live.</p>
+      </section>
+      <section class="dash-section" id="observability">
+        <h2>Agent observability</h2>
+        <ul class="dash-list" id="obs-list" hidden></ul>
+        <p class="dash-empty" id="obs-empty">Call details weren’t saved. That’s the default. Turn on save in account settings to keep transcripts and reports.</p>
+      </section>
+    </div>
+  </div>
+</main>
+<footer>
+  <a class="brand" href="index.html">Treena</a>
+  <span class="footer-right">
+    <span>A little less calling. A little more living.</span>
+    <a href="privacy.html">Privacy</a>
+    <a href="pricing.html">Pricing</a>
+  </span>
+</footer>
+<dialog id="contact-dialog" aria-labelledby="contact-title">
+  <button class="dialog-close" aria-label="Close">×</button>
+  <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
+  <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
+  <p>Treena’s number is coming soon. Get a feel for what happens when you hand off a call.</p>
+  <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
+</dialog>
+<script src="chrome.js?v=20260912-polish"></script>
+<script src="checkout.js"></script>
+<script src="motion.js?v=20260912-motion1"></script>
+</body>
+</html>
