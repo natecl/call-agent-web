@@ -10,19 +10,25 @@ import { PLANS } from '../functions/_lib/plans.js';
 import { requireTestSecret, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import {
   ACCOUNT_SYNC_SIGNATURE_HEADER,
+  DEFAULT_DASHBOARD_URL,
   DEFAULT_SYNC_URL,
+  accountDashboardUrl,
   accountSyncUrl,
   firstNameFrom,
+  getAccountDashboard,
   payloadFromStripeCustomer,
   postAccountSync,
   signAccountSync,
   syncFromStripeEvent,
 } from '../functions/_lib/sync.js';
+import { billingView, loadDashboard } from '../functions/_lib/dashboard.js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
 import { onRequestPost as accountPost } from '../functions/api/account.js';
 import { onRequestGet as sessionGet } from '../functions/api/session.js';
 import { onRequestGet as configGet } from '../functions/api/config.js';
 import { onRequestPost as webhookPost } from '../functions/api/webhook.js';
+import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
+import { onRequestGet as billingGet } from '../functions/api/billing.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const frozenHome = ['public/app.js'];
@@ -71,11 +77,15 @@ function customerFromForm(form, id = 'cus_test_123') {
   };
 }
 
-function mockStripe({ customers = [], session, onCheckout, onCustomer, onFly, flyStatus = 200, flyFailTimes = 0 } = {}) {
+function mockStripe({ customers = [], session, subscription, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0 } = {}) {
   const calls = [];
   let flyAttempts = 0;
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url, method: init.method || 'GET', body: init.body || '', headers: init.headers || {} });
+    if (String(url).includes('/accounts/dashboard')) {
+      if (onDashboard) onDashboard({ url, method: init.method || 'GET', headers: init.headers || {}, body: String(init.body || '') });
+      return jsonResponse(dashboard || { ok: true, user: null, threads: [], calls: [] });
+    }
     if (String(url).includes('/accounts/sync')) {
       flyAttempts += 1;
       if (onFly) onFly({ url, method: init.method || 'POST', headers: init.headers || {}, body: String(init.body || '') });
@@ -121,6 +131,12 @@ function mockStripe({ customers = [], session, onCheckout, onCustomer, onFly, fl
     if (url.includes('/v1/checkout/sessions/') && (init.method || 'GET') === 'GET') {
       return jsonResponse(session);
     }
+    if (url.includes('/v1/subscriptions/') && (init.method || 'GET') === 'GET') {
+      return jsonResponse(subscription || {
+        id: 'sub_test_123',
+        status: 'active',
+      });
+    }
     return jsonResponse({ error: { message: `unexpected Stripe call ${url}` } }, 500);
   };
   return { fetchImpl, calls };
@@ -159,6 +175,8 @@ const publicFiles = [
   'public/pay/index.html',
   'public/start.html',
   'public/start/index.html',
+  'public/dashboard.html',
+  'public/dashboard/index.html',
   'public/checkout.js',
   'public/index.html',
   'public/app.js',
@@ -179,6 +197,8 @@ ok('no trial / free forever / annual / team / enterprise', !/\btrial\b/i.test(pr
 const pay = read('public/pay.html');
 ok('pay posts to /api/checkout', /\/api\/checkout/.test(read('public/checkout.js')));
 ok('start verifies /api/session', /\/api\/session/.test(read('public/checkout.js')));
+ok('start name form is required after pay', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && /required/.test(read('public/start.html')));
+ok('dashboard fetches /api/dashboard', /\/api\/dashboard/.test(read('public/checkout.js')));
 ok('pay no longer marks paid locally', !/KEY\.paid|treena-stub-paid|setItem\([^)]*paid/.test(read('public/checkout.js')));
 ok('start page waits for Stripe session', /session_id/.test(read('public/checkout.js')) && /start-ready/.test(read('public/start.html')));
 ok('pay copy says no trial', /No trial/.test(pay));
@@ -187,6 +207,8 @@ ok('pay mentions Stripe TEST card', /4242 4242 4242 4242/.test(pay));
 ok('Pages Functions: checkout', existsSync(join(root, 'functions/api/checkout.js')));
 ok('Pages Functions: session', existsSync(join(root, 'functions/api/session.js')));
 ok('Pages Functions: webhook', existsSync(join(root, 'functions/api/webhook.js')));
+ok('Pages Functions: dashboard', existsSync(join(root, 'functions/api/dashboard.js')));
+ok('Pages Functions: billing TEST', existsSync(join(root, 'functions/api/billing.js')));
 ok('Pages Functions helpers are private (_lib)', existsSync(join(root, 'functions/_lib/checkout.js')));
 ok('locked plans are Personal $20 and Plus $40', PLANS.personal.amountCents === 2000 && PLANS.plus.amountCents === 4000 && Object.keys(PLANS).length === 2);
 
@@ -397,6 +419,9 @@ const functionsBlob = [
   'functions/api/webhook.js',
   'functions/api/account.js',
   'functions/api/checkout.js',
+  'functions/api/dashboard.js',
+  'functions/api/billing.js',
+  'functions/_lib/dashboard.js',
 ].map(read).join('\n');
 ok('website never opens NEON_DATABASE_URL', !/NEON_DATABASE_URL/.test(functionsBlob));
 ok('account sync URL defaults to Fly origin', accountSyncUrl({}) === DEFAULT_SYNC_URL);
@@ -407,6 +432,13 @@ ok('CALL_AGENT_SYNC_URL wins over PUBLIC_BASE_URL', accountSyncUrl({
 ok('PUBLIC_BASE_URL builds /accounts/sync', accountSyncUrl({
   PUBLIC_BASE_URL: 'https://hidden-beacon-080.fly.dev/',
 }) === 'https://hidden-beacon-080.fly.dev/accounts/sync');
+ok('dashboard URL defaults to Fly origin', accountDashboardUrl({}) === DEFAULT_DASHBOARD_URL);
+ok('dashboard URL derived from CALL_AGENT_SYNC_URL', accountDashboardUrl({
+  CALL_AGENT_SYNC_URL: 'https://example.test/accounts/sync',
+}) === 'https://example.test/accounts/dashboard');
+ok('PUBLIC_BASE_URL builds /accounts/dashboard', accountDashboardUrl({
+  PUBLIC_BASE_URL: 'https://hidden-beacon-080.fly.dev/',
+}) === 'https://hidden-beacon-080.fly.dev/accounts/dashboard');
 ok('first name is the first token', firstNameFrom('Nathan Tester') === 'Nathan' && firstNameFrom('') === null);
 
 const TEST_PHONE = '+14155552671';
@@ -426,9 +458,9 @@ const mapped = payloadFromStripeCustomer(tre20Customer, { eventCreated: 17892000
 ok('TRE-20 map: phone, plan, minutes, retain, stripe id', mapped.phone === TEST_PHONE
   && mapped.plan === 'personal'
   && mapped.minutes_included === 30
-  && mapped.minutes_used === 0
   && mapped.retain_call_artifacts === false
   && mapped.stripe_customer_id === 'cus_test_123');
+ok('TRE-20 map omits minutes_used', !('minutes_used' in mapped));
 ok('TRE-20 map: first_name + prefs.full_name', mapped.first_name === 'Nathan' && mapped.prefs.full_name === 'Nathan Tester');
 ok('TRE-20 map: stripe_event_created is ISO-8601', /^\d{4}-\d{2}-\d{2}T/.test(mapped.stripe_event_created));
 ok('TRE-20 map does not invent user_id', !('user_id' in mapped));
@@ -594,6 +626,142 @@ try {
 
 ok('first-time account continue still goes to pay', /location\.href = href\('pay\.html'/.test(read('public/checkout.js')));
 ok('signup does not collect name', !/id="name"/.test(read('public/account.html')) && /name is not collected on \/account/.test(read('public/checkout.js')));
+ok('home still has frozen iMessage line', /Your phone call agent, right in iMessage/.test(read('public/index.html')));
+ok('OAuth provider sign-in absent', !/accounts\.google|Sign in with Google|oauth2/i.test(publicBlob + functionsBlob));
+
+const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
+ok('dashboard has four sections', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml));
+ok('dashboard billing TEST badge', /class="test-badge">TEST/.test(dashboardHtml) && /No real charge/.test(dashboardHtml));
+ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
+ok('dashboard threads empty state', /No threads yet\. Text Treena after your number is live\./.test(dashboardHtml));
+ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
+ok('dashboard directory index exists', existsSync(join(root, 'public/dashboard/index.html')));
+ok('start name gate posts /api/account', /start-name-form/.test(read('public/checkout.js')) && /\/api\/account/.test(read('public/checkout.js')));
+
+const namelessCustomer = {
+  id: 'cus_test_123',
+  name: null,
+  phone: TEST_PHONE,
+  metadata: {
+    plan: 'personal',
+    phone: TEST_PHONE,
+    minutes: '30',
+    retain_after_call: 'off',
+  },
+};
+const namelessSession = {
+  id: 'cs_test_abc',
+  status: 'complete',
+  payment_status: 'paid',
+  mode: 'subscription',
+  metadata: { plan: 'personal', email: 'tester@example.com', phone: TEST_PHONE },
+  customer: 'cus_test_123',
+  subscription: 'sub_test_123',
+};
+const namedSessionMock = mockStripe({
+  customers: [tre20Customer],
+  session: namelessSession,
+});
+const namedSession = await verifyCheckoutSession(syncEnv, 'cs_test_abc', namedSessionMock.fetchImpl);
+ok('GET /api/session includes Stripe Customer.name', namedSession.ok && namedSession.name === 'Nathan Tester' && namedSession.firstName === 'Nathan');
+
+const missingNameSession = await verifyCheckoutSession(syncEnv, 'cs_test_abc', mockStripe({
+  customers: [namelessCustomer],
+  session: namelessSession,
+}).fetchImpl);
+ok('session without Customer.name needs the start gate', missingNameSession.ok && !missingNameSession.name && !missingNameSession.firstName);
+
+const fixtureThread = {
+  event_id: 'evt_linq_1',
+  chat_id: 'chat_1',
+  sender: TEST_PHONE,
+  verb: 'ask',
+  inbound: { text: 'Can you call Publix about oat milk?' },
+  kickoff: { verb: 'ask' },
+  call: { status: 'completed', call_control_id: 'cc_1' },
+};
+const fixtureCall = {
+  event_id: 'evt_linq_1',
+  call_control_id: 'cc_1',
+  status: 'completed',
+  observability: {
+    status: 'completed',
+    duration_ms: 42000,
+    hangup_path: 'remote',
+    counts: { transcript_turns: 4, tool_calls: 1 },
+  },
+  call_report: { status: 'completed', duration_ms: 42000 },
+  transcript: { turns: [{ role: 'assistant', text: 'Hi' }] },
+};
+
+let flyDashboardReq;
+const dashMock = mockStripe({
+  customers: [tre20Customer],
+  session: namelessSession,
+  dashboard: { ok: true, user: { ...mapped, first_name: 'Nathan', name: { first_name: 'Nathan', full_name: 'Nathan Tester' }, minutes_used: 0, minutes_included: 30 }, threads: [fixtureThread], calls: [fixtureCall] },
+  onDashboard(req) { flyDashboardReq = req; },
+});
+const dash = await loadDashboard(syncEnv, 'cs_test_abc', dashMock.fetchImpl);
+ok('HMAC GET /accounts/dashboard is wired', flyDashboardReq && flyDashboardReq.method === 'GET' && flyDashboardReq.url.startsWith(`${DEFAULT_DASHBOARD_URL}?phone=`) && flyDashboardReq.url.includes(encodeURIComponent(TEST_PHONE)));
+ok('dashboard GET signs the E.164 phone', flyDashboardReq.headers[ACCOUNT_SYNC_SIGNATURE_HEADER] === await signAccountSync(syncSecret, TEST_PHONE));
+ok('dashboard packages usage minutes + call count', dash.usage.minutesIncluded === 30 && dash.usage.minutesUsed === 0 && dash.usage.callCount === 1 && /update after calls/.test(dash.usage.usageNote));
+ok('dashboard includes mocked thread + call_report', dash.threads.length === 1 && dash.calls.length === 1 && dash.calls[0].call_report.status === 'completed');
+ok('dashboard billing is TEST', dash.billing.test === true && dash.billing.badge === 'TEST' && dash.billing.noRealCharge === true && dash.billing.status === 'active');
+ok('dashboard does not need name when Stripe Customer.name is set', dash.needsName === false && dash.firstName === 'Nathan');
+
+const skippedDash = await getAccountDashboard(testEnv, TEST_PHONE, dashMock.fetchImpl);
+ok('missing ACCOUNT_SYNC_SECRET returns empty threads/obs', skippedDash.skipped === true && Array.isArray(skippedDash.threads) && skippedDash.threads.length === 0 && skippedDash.calls.length === 0);
+
+const previousFetchDash = globalThis.fetch;
+globalThis.fetch = mockStripe({
+  customers: [namelessCustomer],
+  session: namelessSession,
+  dashboard: { ok: true, user: null, threads: [], calls: [] },
+}).fetchImpl;
+try {
+  const req = new Request('https://usetreena.com/api/dashboard?session_id=cs_test_abc');
+  const res = await dashboardGet({ request: req, env: testEnv });
+  const body = await res.json();
+  ok('GET /api/dashboard empty arrays without Fly secret', res.status === 200 && body.ok === true && body.threads.length === 0 && body.calls.length === 0 && body.needsName === true);
+} finally {
+  globalThis.fetch = previousFetchDash;
+}
+
+const previousFetchBill = globalThis.fetch;
+globalThis.fetch = mockStripe({
+  customers: [tre20Customer],
+  session: namelessSession,
+  subscription: { id: 'sub_test_123', status: 'active' },
+}).fetchImpl;
+try {
+  const req = new Request('https://usetreena.com/api/billing?session_id=cs_test_abc');
+  const res = await billingGet({ request: req, env: testEnv });
+  const body = await res.json();
+  ok('GET /api/billing is Stripe TEST', res.status === 200 && body.mode === 'test' && body.badge === 'TEST' && body.noRealCharge === true && body.status === 'active');
+} finally {
+  globalThis.fetch = previousFetchBill;
+}
+
+let namedFly;
+const namePosted = mockStripe({
+  customers: [{ id: 'cus_existing', phone: TEST_PHONE, metadata: { plan: 'personal', phone: TEST_PHONE, minutes: '30', retain_after_call: 'off' } }],
+  onFly(post) { namedFly = post; },
+});
+const namedSave = await saveAccountSettings(syncEnv, {
+  email: 'tester@example.com',
+  name: 'Nathan Tester',
+  phone: TEST_PHONE,
+  planId: 'personal',
+  retainAfterCall: 'off',
+  fetchImpl: namePosted.fetchImpl,
+});
+ok('POST /api/account name maps first_name + prefs.full_name', namedSave.ok === true && namedSave.firstName === 'Nathan' && JSON.parse(namedFly.body).first_name === 'Nathan' && JSON.parse(namedFly.body).prefs.full_name === 'Nathan Tester' && !('minutes_used' in JSON.parse(namedFly.body)));
+
+const billed = await billingView(testEnv, namedSession, mockStripe({
+  customers: [tre20Customer],
+  session: namelessSession,
+}).fetchImpl);
+ok('billing view stays TEST-only', billed.mode === 'test' && billed.amountCents === 2000);
 
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
@@ -621,6 +789,10 @@ ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` |
 ok('FEATURE_MAP privacy locked copy is the live page', /locked copy.*is live/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
 ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
 ok('FEATURE_MAP home HOLD / iMessage unchanged', /Home is HOLD/.test(featureMap) && /iMessage line are unchanged/.test(featureMap));
+ok('FEATURE_MAP marks dashboard sot-ready / not live', featureMap.includes('| `/dashboard.html` | `public/dashboard.html` | sot-ready |') && /Do not claim live/.test(featureMap) && /Pages deploy held/.test(featureMap));
+ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
+ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
+ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(featureMap) && !/`minutes_used` is 0/.test(featureMap));
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
 if (!secret) {

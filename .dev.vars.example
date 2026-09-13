@@ -11,7 +11,8 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # Optional. Stripe TEST webhook signing secret for POST /api/webhook.
 # STRIPE_WEBHOOK_SECRET=whsec_...
 
-# HMAC shared with Fly ACCOUNT_SYNC_SECRET. Website POSTs /accounts/sync.
+# HMAC shared with Fly ACCOUNT_SYNC_SECRET. Website POSTs /accounts/sync
+# and HMAC-GETs /accounts/dashboard (signature over the E.164 phone).
 # Fly is the sole writer of users. Do not set NEON_DATABASE_URL here.
 # ACCOUNT_SYNC_SECRET=replace_me
 # CALL_AGENT_SYNC_URL=https://hidden-beacon-080.fly.dev/accounts/sync

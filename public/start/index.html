@@ -27,6 +27,24 @@
     <h1>Confirming payment</h1>
     <p class="page-lead">Checking your Stripe TEST subscription…</p>
   </div>
+  <div id="start-name" hidden>
+    <p class="eyebrow">One more thing</p>
+    <h1>What should Treena<br>call you?</h1>
+    <p class="page-lead">Treena uses your first name on the call — not the product name. Your test subscription is confirmed.</p>
+    <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
+    <form id="start-name-form">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" autocomplete="name" required maxlength="64" aria-describedby="name-hint">
+        <p class="field-hint" id="name-hint">First name is enough. Letters, spaces, apostrophes, and hyphens.</p>
+      </div>
+      <div class="flow-actions">
+        <button class="button primary" type="submit">Continue to dashboard <span aria-hidden="true">→</span></button>
+      </div>
+    </form>
+    <p class="flow-error" id="name-error" role="alert" hidden></p>
+    <p class="stub-note">Stripe TEST subscription is active. No real charge.</p>
+  </div>
   <div id="start-ready" hidden>
     <p class="eyebrow">All set</p><h1>A little more<br>off your plate.</h1>
     <p class="page-lead">Your test subscription is confirmed. Treena’s texting number is coming soon.</p>
