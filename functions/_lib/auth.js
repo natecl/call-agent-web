@@ -210,7 +210,7 @@ export function loginErrorRedirect(origin, message, missing) {
   const params = new URLSearchParams();
   params.set('auth_error', message);
   if (missing && missing.length) params.set('missing', missing.join(','));
-  return redirect(`${origin}/login.html?${params.toString()}`);
+  return redirect(`${origin}/login?${params.toString()}`);
 }
 
 export function callbackErrorRedirect(origin, message) {

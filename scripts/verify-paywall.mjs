@@ -643,7 +643,7 @@ ok('apple missing names Apple + AUTH_SESSION_SECRET', appleMissing({}).includes(
 ok('oauth status is false without secrets', oauthStatus({}).google === false && oauthStatus({}).apple === false);
 
 const googleBlocked = await startGoogleOAuth({}, new Request('https://usetreena.com/api/auth/google'));
-ok('google start without secrets redirects to /login with missing keys', googleBlocked.status === 302 && /login\.html/.test(googleBlocked.headers.get('Location')) && /GOOGLE_CLIENT_ID/.test(googleBlocked.headers.get('Location')));
+ok('google start without secrets redirects to /login with missing keys', googleBlocked.status === 302 && /\/login\?/.test(googleBlocked.headers.get('Location')) && /GOOGLE_CLIENT_ID/.test(googleBlocked.headers.get('Location')));
 const appleBlocked = await startAppleOAuth({}, new Request('https://usetreena.com/api/auth/apple'));
 ok('apple start without secrets redirects to /login with missing keys', appleBlocked.status === 302 && /APPLE_CLIENT_ID/.test(appleBlocked.headers.get('Location')));
 
