@@ -631,7 +631,7 @@ ok('start collects name and settings copy', /id="start-name-form"/.test(read('pu
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
 ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /Sign in with Apple/.test(publicBlob) && /accounts\.google\.com/.test(functionsBlob));
 ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
-ok('_redirects keeps /login off the homepage', /\/login \/login\.html 200/.test(read('public/_redirects')));
+ok('_redirects aliases signin to /login', /\/signin \/login 301/.test(read('public/_redirects')) && existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')));
 ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
 ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/login.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
 ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));

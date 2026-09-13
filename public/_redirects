@@ -1,5 +1,3 @@
-/login /login.html 200
-/login/ /login/index.html 200
 /signin /login 301
 /sign-in /login 301
 /log-in /login 301
