@@ -2,7 +2,7 @@ import { getPlan } from './plans.js';
 import { assertPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
 import { encodeForm, stripeRequest } from './stripe.js';
-import { payloadFromStripeCustomer, postAccountSync } from './sync.js';
+import { assertName, firstNameFrom, payloadFromStripeCustomer, postAccountSync } from './sync.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,7 +58,7 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
   const normalizedEmail = assertEmail(email);
   const normalizedPhone = assertPhone(phone);
   const retain = normalizeRetain(retainAfterCall);
-  const trimmedName = String(name || '').trim();
+  const named = assertName(name);
   const listed = await stripeRequest(env, {
     method: 'GET',
     path: `customers?email=${encodeURIComponent(normalizedEmail)}&limit=1`,
@@ -75,7 +75,7 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
     path: `customers/${encodeURIComponent(existing.id)}`,
     form: encodeForm(customerFields({
       email: normalizedEmail,
-      name: trimmedName,
+      name: named.name,
       phone: normalizedPhone,
       plan,
       retainAfterCall: retain,
@@ -86,7 +86,7 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
     ...existing,
     ...customer,
     id: customer.id || existing.id,
-    name: trimmedName || customer.name || existing.name || '',
+    name: named.name || customer.name || existing.name || '',
     phone: normalizedPhone,
     metadata: {
       ...(existing.metadata || {}),
@@ -110,6 +110,8 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
     minutes: plan.minutes,
     phone: normalizedPhone,
     retainAfterCall: retain,
+    name: named.name,
+    firstName: named.firstName,
     sync,
   };
 }
@@ -229,6 +231,9 @@ export function paidSessionView(session) {
   }
   const phone = assertPhone(session.metadata && session.metadata.phone);
   const retainAfterCall = normalizeRetain(session.metadata && session.metadata.retain_after_call);
+  const details = session.customer_details || {};
+  const metadata = session.metadata || {};
+  const name = String(metadata.name || details.name || '').trim();
   return {
     ok: true,
     plan: plan.id,
@@ -237,6 +242,8 @@ export function paidSessionView(session) {
     retainAfterCall,
     phone,
     email: (session.metadata && session.metadata.email) || session.customer_email || null,
+    name: name || null,
+    firstName: firstNameFrom(name),
     customerId: typeof session.customer === 'string' ? session.customer : session.customer && session.customer.id,
     subscriptionId: typeof session.subscription === 'string'
       ? session.subscription
@@ -262,5 +269,19 @@ export async function verifyCheckoutSession(env, sessionId, fetchImpl) {
     path: `checkout/sessions/${encodeURIComponent(id)}`,
     fetchImpl,
   });
-  return paidSessionView(session);
+  const view = paidSessionView(session);
+  if (!view.customerId) return view;
+  try {
+    const customer = await stripeRequest(env, {
+      method: 'GET',
+      path: `customers/${encodeURIComponent(view.customerId)}`,
+      fetchImpl,
+    });
+    const name = String(customer.name || view.name || '').trim();
+    view.name = name || null;
+    view.firstName = firstNameFrom(name);
+  } catch {
+    // Keep Checkout Session name when Customer retrieve fails.
+  }
+  return view;
 }

@@ -232,6 +232,6 @@ footer{margin-top:68px;padding-top:30px;padding-bottom:36px}
 .change-plan:hover{color:var(--blue)}
 .page-main .stub-note{margin-top:10px}
 .flow-error{margin-top:12px;font-size:14px;color:#b42318;letter-spacing:-.01em}
-.flow-error[hidden],#start-ready[hidden],#start-pending[hidden]{display:none}
+.flow-error[hidden],#start-ready[hidden],#start-pending[hidden],#start-name[hidden],#dash-ready[hidden],#dash-pending[hidden]{display:none}
 .plan-echo{margin-top:8px}
 @media(max-width:620px){.plan-grid{grid-template-columns:1fr;gap:16px;margin-top:28px}.page-main .plan-price{font-size:40px}.page-main .page-lead{font-size:17px}}
