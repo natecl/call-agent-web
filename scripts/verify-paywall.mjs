@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createCheckoutSession, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
+import { createCheckoutSession, createMinutePackCheckout, minutePackCheckoutForm, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
 import { PLANS } from '../functions/_lib/plans.js';
 import { looksLikeCheckoutSessionId, requireStripeSecret, stripeMode, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import {
@@ -21,6 +21,7 @@ import {
   syncFromStripeEvent,
 } from '../functions/_lib/sync.js';
 import { billingView, loadDashboard } from '../functions/_lib/dashboard.js';
+import { PACK_AMOUNT_CENTS, PACK_MAX_COUNT, PACK_MAX_MINUTES, PACK_MINUTES, usageFromAccount, usageSeedNameFromEnv } from '../functions/_lib/usage.js';
 import { unixToIso, periodFromSubscription, createBillingPortalSession, cancelSubscriptionAtPeriodEnd } from '../functions/_lib/billing.js';
 import { assertUserPhone, DEFAULT_TELNYX_FROM_E164 } from '../functions/_lib/phone.js';
 import { shouldRouteToDashboard } from '../functions/_lib/route.js';
@@ -37,6 +38,7 @@ import { onRequestPost as webhookPost } from '../functions/api/webhook.js';
 import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
 import { onRequestGet as billingGet } from '../functions/api/billing.js';
 import { onRequestPost as billingPortalPost } from '../functions/api/billing/portal.js';
+import { onRequestPost as billingPackPost } from '../functions/api/billing/pack.js';
 import { onRequestPost as billingCancelPost } from '../functions/api/billing/cancel.js';
 import { onRequest as homeMiddleware } from '../functions/_middleware.js';
 
@@ -457,6 +459,7 @@ try {
 const configRes = await configGet({ request: new Request('https://usetreena.com/api/config'), env: testEnv });
 const configBody = await configRes.json();
 ok('GET /api/config is TEST when sk_test_ is set', configRes.status === 200 && configBody.mode === 'test' && configBody.configured === true && configBody.stripeLive === false);
+ok('config publishes locked $1.00 minute pack', configBody.pack && configBody.pack.amountCents === 100 && configBody.pack.minutes === 5 && configBody.pack.maxPacks === 12 && configBody.pack.autoMeter === false);
 ok('publishable key is pk_test_', String(configBody.publishableKey || '').startsWith('pk_test_'));
 ok('config publishes shared iMessage DID', configBody.imessage && configBody.imessage.e164 === '+12138653024' && configBody.imessage.smsUrl === 'sms:+12138653024' && configBody.imessage.shared === true);
 ok('config exposes webhookConfigured without inventing the secret', configBody.webhookConfigured === false);
@@ -529,7 +532,9 @@ const functionsBlob = [
   'functions/api/billing.js',
   'functions/api/billing/portal.js',
   'functions/api/billing/cancel.js',
+  'functions/api/billing/pack.js',
   'functions/_lib/dashboard.js',
+  'functions/_lib/usage.js',
   'functions/_lib/imessage.js',
   'functions/_lib/auth.js',
   'functions/api/auth/[[path]].js',
@@ -896,7 +901,9 @@ ok('auth payload roundtrip', authPayload.email === 'a@b.com');
 const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
 ok('dashboard has usage billing threads observability settings', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml) && /id="settings"/.test(dashboardHtml));
 ok('dashboard billing TEST badge is env-gated', /class="test-badge"/.test(dashboardHtml) && /data-stripe-test-only/.test(dashboardHtml) && /No real charge/.test(dashboardHtml) && /Billed on Stripe/.test(dashboardHtml));
-ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
+ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-minutes-remaining/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
+ok('dashboard pack purchase is $1.00 / 5 min with 12-pack cap', /id="minute-pack"/.test(dashboardHtml) && /id="buy-pack"/.test(dashboardHtml) && /\$1\.00 per 5 connected minutes/.test(dashboardHtml) && /12 packs/.test(dashboardHtml) && /No auto-meter/.test(dashboardHtml) && /data-cap-banner/.test(dashboardHtml));
+ok('dashboard does not auto-meter after included cap', !/Estimated metered charges/.test(dashboardHtml) && !/Additional connected minutes/.test(dashboardHtml) && /\/api\/billing\/pack/.test(read('public/checkout.js')));
 ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboardHtml) && /id="manage-billing"/.test(dashboardHtml) && /id="cancel-plan"/.test(dashboardHtml) && /Stripe Customer Portal/.test(dashboardHtml));
 ok('dashboard complimentary grant copy', /Complimentary access\. No Stripe charge/.test(dashboardHtml) && /data-complimentary-only/.test(dashboardHtml) && /Manage billing is for paid Stripe subscriptions/.test(dashboardHtml) && !/Manage billing opens Stripe Customer Portal/.test(dashboardHtml));
 ok('dashboard JS hides Manage billing for complimentary grants', /manage\.hidden = hidePortal/.test(read('public/checkout.js')) && /Complimentary accounts do not use Stripe Customer Portal/.test(read('functions/api/billing/portal.js')));
@@ -976,9 +983,102 @@ const dash = await loadDashboard(syncEnv, 'cs_test_abc', dashMock.fetchImpl);
 ok('HMAC GET /accounts/dashboard is wired', flyDashboardReq && flyDashboardReq.method === 'GET' && flyDashboardReq.url.startsWith(`${DEFAULT_DASHBOARD_URL}?phone=`) && flyDashboardReq.url.includes(encodeURIComponent(TEST_PHONE)));
 ok('dashboard GET signs the E.164 phone', flyDashboardReq.headers[ACCOUNT_SYNC_SIGNATURE_HEADER] === await signAccountSync(syncSecret, TEST_PHONE));
 ok('dashboard packages usage minutes + call count', dash.usage.minutesIncluded === 30 && dash.usage.minutesUsed === 0 && dash.usage.callCount === 1 && /update after calls/.test(dash.usage.usageNote));
+ok('dashboard remaining + pack view on unused seed', dash.usage.minutesRemaining === 30 && dash.usage.state === 'ok' && dash.usage.atCap === false && dash.usage.autoMeter === false && dash.usage.pack.amountCents === 100 && dash.usage.pack.canPurchase === true);
 ok('dashboard includes mocked thread + call_report', dash.threads.length === 1 && dash.calls.length === 1 && dash.calls[0].call_report.status === 'completed');
 ok('dashboard billing follows TEST keys', dash.billing.test === true && dash.billing.badge === 'TEST' && dash.billing.noRealCharge === true && dash.billing.status === 'active');
 ok('dashboard does not need name when Stripe Customer.name is set', dash.needsName === false && dash.firstName === 'Nathan');
+
+const approachingUsage = usageFromAccount({
+  user: { minutes_included: 30, minutes_used: 26 },
+  planMinutes: 30,
+});
+ok('approaching cap is remaining ≤ 5', approachingUsage.state === 'approaching' && approachingUsage.minutesRemaining === 4 && approachingUsage.atCap === false && approachingUsage.pack.canPurchase === true);
+
+const atCapUsage = usageFromAccount({
+  user: { minutes_included: 30, minutes_used: 30 },
+  planMinutes: 30,
+});
+ok('at cap remaining is 0 and packs are the only path', atCapUsage.state === 'at_cap' && atCapUsage.minutesRemaining === 0 && atCapUsage.autoMeter === false && atCapUsage.pack.amountCents === PACK_AMOUNT_CENTS && atCapUsage.pack.canPurchase === true);
+
+const afterPackUsage = usageFromAccount({
+  user: { minutes_included: 30, minutes_used: 30, prepaid_minutes: 5 },
+  planMinutes: 30,
+});
+ok('after pack purchase remaining includes 5 prepaid minutes', afterPackUsage.minutesRemaining === 5 && afterPackUsage.prepaidMinutes === 5 && afterPackUsage.pack.packsUsed === 1 && afterPackUsage.atCap === false);
+
+const packCapUsage = usageFromAccount({
+  user: { minutes_included: 30, minutes_used: 90, prepaid_minutes: 60 },
+  planMinutes: 30,
+});
+ok('12-pack / 60 min prepaid cap blocks another purchase', packCapUsage.pack.atPackCap === true && packCapUsage.pack.canPurchase === false && packCapUsage.pack.packsUsed === PACK_MAX_COUNT && packCapUsage.pack.maxPrepaidMinutes === PACK_MAX_MINUTES && packCapUsage.minutesRemaining === 0);
+
+const seededCap = usageFromAccount({ seedName: 'at_cap', planMinutes: 30, env: testEnv });
+ok('TEST seed at_cap fills remaining 0', seededCap.seed === 'at_cap' && seededCap.state === 'at_cap' && seededCap.minutesUsed === 30);
+
+const flyWinsSeed = usageFromAccount({
+  user: { minutes_included: 30, minutes_used: 12 },
+  seedName: 'at_cap',
+  planMinutes: 30,
+});
+ok('Fly minutes_used wins over TEST seed', flyWinsSeed.minutesUsed === 12 && flyWinsSeed.minutesRemaining === 18 && flyWinsSeed.seed === null);
+
+ok('TEST env can select a usage seed', usageSeedNameFromEnv({ ...testEnv, DASHBOARD_USAGE_SEED: 'after_pack' }) === 'after_pack');
+ok('live Stripe ignores DASHBOARD_USAGE_SEED', usageSeedNameFromEnv({ ...liveEnv, DASHBOARD_USAGE_SEED: 'at_cap' }) === null);
+
+const seedDash = await loadDashboard({ ...syncEnv, DASHBOARD_USAGE_SEED: 'after_pack' }, 'cs_test_abc', mockStripe({
+  customers: [tre20Customer],
+  session: namelessSession,
+  dashboard: { ok: true, user: { first_name: 'Nathan', prefs: { full_name: 'Nathan Tester' } }, threads: [], calls: [] },
+}).fetchImpl);
+ok('dashboard TEST seed after_pack hydrates settings + remaining', seedDash.settings.name === 'Nathan Tester' && seedDash.usage.seed === 'after_pack' && seedDash.usage.prepaidMinutes === 5 && seedDash.usage.minutesRemaining === 5 && seedDash.usage.state === 'approaching');
+
+const packForm = minutePackCheckoutForm({
+  origin: 'https://usetreena.com',
+  customerId: 'cus_test_123',
+  email: 'tester@example.com',
+  phone: TEST_PHONE,
+});
+ok('pack checkout is $1.00 one-time payment', packForm.get('mode') === 'payment' && packForm.get('line_items[0][price_data][unit_amount]') === '100' && packForm.get('metadata[minutes]') === String(PACK_MINUTES) && packForm.get('success_url') === 'https://usetreena.com/dashboard.html?pack=ok' && !/session_id/.test(packForm.get('success_url') || '') && !packForm.has('subscription_data[trial_period_days]'));
+
+let packCheckoutForm;
+const packSession = await createMinutePackCheckout(testEnv, {
+  origin: 'https://usetreena.com',
+  customerId: 'cus_test_123',
+  email: 'tester@example.com',
+  phone: TEST_PHONE,
+  prepaidMinutes: 0,
+  fetchImpl: mockStripe({ onCheckout(form) { packCheckoutForm = form; } }).fetchImpl,
+});
+ok('createMinutePackCheckout is Stripe TEST $1.00', String(packSession.id).startsWith('cs_test_') && packSession.amountCents === 100 && packSession.minutes === 5 && packCheckoutForm.get('line_items[0][price_data][unit_amount]') === '100');
+
+let packCapErr;
+try {
+  await createMinutePackCheckout(testEnv, {
+    origin: 'https://usetreena.com',
+    customerId: 'cus_test_123',
+    prepaidMinutes: 60,
+    fetchImpl: mockStripe().fetchImpl,
+  });
+} catch (error) {
+  packCapErr = error;
+}
+ok('pack checkout refuses the 12-pack cap', packCapErr && packCapErr.status === 409 && /12 packs/.test(packCapErr.message));
+
+const packWebhookPayload = JSON.stringify({
+  type: 'checkout.session.completed',
+  data: { object: { mode: 'payment', client_reference_id: 'minute_pack', metadata: { kind: 'minute_pack', minutes: '5' } } },
+});
+const packWebhookTs = Math.floor(Date.now() / 1000);
+const packWebhookSig = createHmac('sha256', webhookSecret).update(`${packWebhookTs}.${packWebhookPayload}`).digest('hex');
+const packWebhookRes = await webhookPost({
+  request: new Request('https://usetreena.com/api/webhook', {
+    method: 'POST',
+    headers: { 'Stripe-Signature': `t=${packWebhookTs},v1=${packWebhookSig}` },
+    body: packWebhookPayload,
+  }),
+  env: { STRIPE_WEBHOOK_SECRET: webhookSecret },
+});
+ok('pack checkout webhook is not an unknown plan', packWebhookRes.status === 200);
 
 const skippedDash = await getAccountDashboard(testEnv, TEST_PHONE, dashMock.fetchImpl);
 ok('missing ACCOUNT_SYNC_SECRET returns empty threads/obs', skippedDash.skipped === true && Array.isArray(skippedDash.threads) && skippedDash.threads.length === 0 && skippedDash.calls.length === 0);
@@ -1244,6 +1344,28 @@ try {
   });
   const portalLateCookieBody = await portalLateCookie.json();
   ok('late /api/auth/me cookie still opens portal', portalLateCookie.status === 200 && String(portalLateCookieBody.url).startsWith('https://billing.stripe.com/'));
+
+  const packRes = await billingPackPost({
+    request: new Request('https://usetreena.com/api/billing/pack', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({}),
+    }),
+    env: authEnv,
+  });
+  const packBody = await packRes.json();
+  ok('POST /api/billing/pack returns Stripe TEST $1.00 Checkout', packRes.status === 200 && String(packBody.url).startsWith('https://checkout.stripe.com/') && packBody.amountCents === 100 && packBody.minutes === 5 && String(packBody.id).startsWith('cs_test_'));
+
+  const packCapHttp = await billingPackPost({
+    request: new Request('https://usetreena.com/api/billing/pack', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({}),
+    }),
+    env: { ...authEnv, DASHBOARD_USAGE_SEED: 'pack_cap' },
+  });
+  const packCapHttpBody = await packCapHttp.json();
+  ok('POST /api/billing/pack is 409 at 12-pack cap', packCapHttp.status === 409 && /12 packs/.test(packCapHttpBody.error || ''));
 } finally {
   globalThis.fetch = previousFetchPortal;
 }
@@ -1265,7 +1387,18 @@ try {
     env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
   });
   const grantDashBody = await grantDashRes.json();
-  ok('complimentary dashboard loads without a paid subscription', grantDashRes.status === 200 && grantDashBody.ok === true && grantDashBody.billing.complimentary === true && grantDashBody.billing.status === 'complimentary' && grantDashBody.billing.periodEnd == null && grantDashBody.billing.noRealCharge === true && grantDashBody.billing.plan === 'personal' && grantDashBody.billing.canManageBilling === false);
+  ok('complimentary dashboard loads without a paid subscription', grantDashRes.status === 200 && grantDashBody.ok === true && grantDashBody.billing.complimentary === true && grantDashBody.billing.status === 'complimentary' && grantDashBody.billing.periodEnd == null && grantDashBody.billing.noRealCharge === true && grantDashBody.billing.plan === 'personal' && grantDashBody.billing.canManageBilling === false && grantDashBody.usage.pack.canPurchase === false);
+
+  const grantPackRes = await billingPackPost({
+    request: new Request('https://usetreena.com/api/billing/pack', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: grantDashCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({}),
+    }),
+    env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
+  });
+  const grantPackBody = await grantPackRes.json();
+  ok('complimentary pack purchase is 403', grantPackRes.status === 403 && /Complimentary/.test(grantPackBody.error || ''));
 
   const grantPortalRes = await billingPortalPost({
     request: new Request('https://usetreena.com/api/billing/portal', {
@@ -1310,7 +1443,7 @@ const mwNext = await homeMiddleware({
 });
 ok('middleware leaves logged-out / alone', mwNext.status === 200);
 
-ok('Pages Functions: billing portal + cancel', existsSync(join(root, 'functions/api/billing/portal.js')) && existsSync(join(root, 'functions/api/billing/cancel.js')));
+ok('Pages Functions: billing portal + cancel + pack', existsSync(join(root, 'functions/api/billing/portal.js')) && existsSync(join(root, 'functions/api/billing/cancel.js')) && existsSync(join(root, 'functions/api/billing/pack.js')));
 ok('home app.js routes signed-in accounts off the landing', /hasAccount/.test(read('public/app.js')) && /\/dashboard/.test(read('public/app.js')));
 ok('home app.js ignores junk treena-session-id', /cs_\(test\|live\)_/.test(read('public/app.js')));
 ok('start name save sends sessionId', /sessionId/.test(read('public/checkout.js')) && /\/api\/billing\/portal/.test(read('public/checkout.js')) && /\/api\/billing\/cancel/.test(read('public/checkout.js')));
@@ -1420,6 +1553,7 @@ ok('FEATURE_MAP marks dashboard sot-ready on Pages', featureMap.includes('| `/da
 ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
 ok('FEATURE_MAP records billing period / portal / cancel / settings', featureMap.includes('| dashboard-billing-period |') && featureMap.includes('| dashboard-billing-portal |') && featureMap.includes('| dashboard-cancel-plan |') && featureMap.includes('| dashboard-account-settings |') && featureMap.includes('| dashboard-retain-persist |') && featureMap.includes('| logged-in-home-route |'));
+ok('FEATURE_MAP records dashboard remaining + locked minute packs', featureMap.includes('| dashboard-usage |') && featureMap.includes('| dashboard-minute-pack |') && /\$1\.00 per 5 connected minutes/.test(featureMap) && /12 packs/.test(featureMap) && /No auto-meter/.test(featureMap) && /POST \/api\/billing\/pack/.test(featureMap) && /price is locked/.test(featureMap) && !/Blocked on pack price/.test(featureMap));
 ok('FEATURE_MAP OAuth advances past details to Review & pay', /advances to Review & pay/.test(featureMap) && /continuePathAfterIdentity/.test(featureMap));
 ok('FEATURE_MAP complimentary grant is env-gated', featureMap.includes('| dashboard-complimentary-grant |') && /COMPLIMENTARY_ENTITLEMENT_EMAILS/.test(featureMap) && /no Stripe charge/.test(featureMap) && /no subscription/.test(featureMap));
 ok('FEATURE_MAP logged-in accounts leave the landing', /routed to `\/dashboard`/.test(featureMap) && /not the landing/.test(featureMap));

@@ -8,7 +8,7 @@
   <title>Treena — Your account</title>
   <link rel="icon" href="../assets/treena-icon.svg">
   <link rel="stylesheet" href="../treena-theme.css?v=20260914-navleft">
-  <link rel="stylesheet" href="../dashboard-ui.css?v=20260914-privacy-retain">
+  <link rel="stylesheet" href="../dashboard-ui.css?v=20260914-usage1">
 </head>
 <body class="dashboard-concept" data-page="dashboard" data-base="..">
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -74,12 +74,12 @@
           <span data-cancel-row hidden>Plan ends <b data-cancel-effective-at>—</b></span>
         </div>
       </article>
-      <article class="usage-panel" id="usage">
+      <article class="usage-panel" id="usage" data-usage-state="ok">
         <div class="panel-label">Monthly usage <span class="quiet">Current billing period</span></div>
         <div class="usage-headline">
           <div>
             <strong><b data-minutes-remaining>—</b><span>min</span></strong>
-            <p>Remaining this month</p>
+            <p data-remaining-label>Remaining this month</p>
           </div>
           <span class="usage-fraction"><b data-minutes-used>—</b> of <span data-minutes-included>—</span> min used</span>
         </div>
@@ -89,15 +89,17 @@
           <span><span data-plan-minutes>—</span> min included</span>
         </div>
         <div class="reset-row"><span data-reset-date>Monthly reset date unavailable</span><span data-reset-countdown></span></div>
+        <p class="cap-banner" data-cap-banner hidden role="status"></p>
         <div class="usage-note"><span class="tiny-dot"></span>Only time connected on a call counts toward your minutes.</div>
       </article>
-      <article class="profile-panel metered-panel">
-        <div class="panel-label">Additional usage <span class="quiet">Current billing period</span></div>
-        <dl>
-          <div><dt>Additional connected minutes</dt><dd><span data-overage-minutes>—</span> min</dd></div>
-          <div><dt>Rate after included minutes</dt><dd>$<span data-plan-overage>—</span> / min</dd></div>
-          <div><dt>Estimated metered charges</dt><dd data-overage-cost>—</dd></div>
-        </dl>
+      <article class="profile-panel pack-panel" id="minute-pack">
+        <div class="panel-label">5-minute packs <span class="quiet">$1.00 · max 60 min</span></div>
+        <p class="profile-note" data-pack-copy>$1.00 per 5 connected minutes. Up to 12 packs (60 extra minutes) this period. No auto-meter — buy a pack when you hit your cap.</p>
+        <p class="profile-note" data-prepaid-row hidden><span data-prepaid-minutes>—</span> prepaid pack minutes · <span data-packs-used>—</span> of 12 packs.</p>
+        <p class="concept-note" data-pack-recorded hidden>Pack purchase recorded. Remaining minutes update when usage syncs.</p>
+        <button class="settings-button primary-action" id="buy-pack" type="button">Add 5-minute pack · $1.00</button>
+        <p class="profile-note" data-pack-gated hidden></p>
+        <p class="flow-error" id="pack-error" role="alert" hidden></p>
       </article>
       <details class="history-details">
         <summary>Call activity</summary>
@@ -254,7 +256,7 @@
     </section>
   </div>
 </main>
-<script src="../dashboard-ui.js?v=20260914-privacy-retain"></script>
-<script src="../checkout.js?v=20260914-privacy-retain"></script>
+<script src="../dashboard-ui.js?v=20260914-usage1"></script>
+<script src="../checkout.js?v=20260914-usage1"></script>
 </body>
 </html>

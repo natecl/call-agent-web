@@ -8,6 +8,14 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # STRIPE_PRICE_PERSONAL=price_...
 # STRIPE_PRICE_PLUS=price_...
 
+# Optional. Minute pack Checkout. If omitted, inline price_data $1.00 / 5 connected minutes.
+# Cap lock: max 12 packs (60 extra minutes). No auto-meter.
+# STRIPE_PRICE_MINUTE_PACK=price_...
+
+# Optional TEST-only dashboard usage fixture (sk_test_ only; live ignores).
+# ok | approaching | at_cap | after_pack | pack_cap
+# DASHBOARD_USAGE_SEED=at_cap
+
 # Optional. Unset on Pages today — POST /api/webhook returns 503 until ops sets this.
 # Do not invent a value.
 # STRIPE_WEBHOOK_SECRET=whsec_...

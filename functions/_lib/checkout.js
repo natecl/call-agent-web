@@ -3,6 +3,7 @@ import { assertPhone, assertUserPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
 import { assertCheckoutSessionId, encodeForm, requireStripeSecret, stripeRequest } from './stripe.js';
 import { assertName, firstNameFrom, payloadFromStripeCustomer, postAccountSync } from './sync.js';
+import { MINUTE_PACK_KIND, PACK_AMOUNT_CENTS, PACK_MAX_MINUTES, PACK_MINUTES, PACK_PRODUCT_DESCRIPTION, PACK_PRODUCT_NAME, MINUTE_PACK_PRICE_ENV, minutePackView } from './usage.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -222,6 +223,89 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     phone: normalizedPhone,
     retainAfterCall: retain,
     customerId: customer.id,
+  };
+}
+
+export function minutePackCheckoutForm({ origin, customerId, email, phone, priceId }) {
+  const fields = {
+    mode: 'payment',
+    customer: customerId,
+    client_reference_id: MINUTE_PACK_KIND,
+    success_url: `${origin}/dashboard.html?pack=ok`,
+    cancel_url: `${origin}/dashboard.html`,
+    'payment_method_types[0]': 'card',
+    'line_items[0][quantity]': '1',
+    'metadata[kind]': MINUTE_PACK_KIND,
+    'metadata[minutes]': String(PACK_MINUTES),
+    'metadata[amount_cents]': String(PACK_AMOUNT_CENTS),
+    'metadata[max_prepaid_minutes]': String(PACK_MAX_MINUTES),
+    'metadata[email]': email || undefined,
+    'metadata[phone]': phone || undefined,
+  };
+  if (priceId) {
+    fields['line_items[0][price]'] = priceId;
+  } else {
+    fields['line_items[0][price_data][currency]'] = 'usd';
+    fields['line_items[0][price_data][unit_amount]'] = String(PACK_AMOUNT_CENTS);
+    fields['line_items[0][price_data][product_data][name]'] = PACK_PRODUCT_NAME;
+    fields['line_items[0][price_data][product_data][description]'] = PACK_PRODUCT_DESCRIPTION;
+  }
+  return encodeForm(fields);
+}
+
+export async function createMinutePackCheckout(env, {
+  origin,
+  customerId,
+  email,
+  phone,
+  prepaidMinutes,
+  fetchImpl,
+} = {}) {
+  const pack = minutePackView(env, { prepaidMinutes });
+  if (pack.atPackCap) {
+    const err = new Error(pack.gatedReason || 'Pack cap reached (60 min / 12 packs this period).');
+    err.status = 409;
+    throw err;
+  }
+  const id = String(customerId || '').trim();
+  if (!id) {
+    const err = new Error('No Stripe customer on this account');
+    err.status = 404;
+    throw err;
+  }
+  const priceId = String((env && env[MINUTE_PACK_PRICE_ENV]) || '').trim();
+  const form = minutePackCheckoutForm({
+    origin,
+    customerId: id,
+    email,
+    phone,
+    priceId,
+  });
+  const amount = form.get('line_items[0][price_data][unit_amount]');
+  if (amount && amount !== String(PACK_AMOUNT_CENTS)) {
+    const err = new Error('Minute pack amount must be $1.00');
+    err.status = 500;
+    throw err;
+  }
+  const session = await stripeRequest(env, {
+    method: 'POST',
+    path: 'checkout/sessions',
+    form,
+    fetchImpl,
+  });
+  if (!session.url) {
+    const err = new Error('Stripe Checkout URL missing');
+    err.status = 502;
+    throw err;
+  }
+  return {
+    id: session.id,
+    url: session.url,
+    kind: MINUTE_PACK_KIND,
+    minutes: PACK_MINUTES,
+    amountCents: PACK_AMOUNT_CENTS,
+    priceConfigured: true,
+    customerId: id,
   };
 }
 
