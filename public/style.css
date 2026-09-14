@@ -169,10 +169,14 @@
 
 /* Screen-wide navigation framing, independent of the centered hero composition. */
 .nav{max-width:none;width:auto;margin:0 clamp(24px,4vw,80px);height:80px;gap:48px}
-.nav>.button{margin-left:auto}
+.nav>.button,.nav-end{margin-left:auto}
+.nav-end{display:flex;align-items:center;gap:18px;flex:none}
+.nav-login{font-size:14px;color:#4d586f;white-space:nowrap;transition:color .2s}
+.nav-login:hover{color:#007aff}
 footer{max-width:none;margin-left:clamp(24px,4vw,80px);margin-right:clamp(24px,4vw,80px)}
 @media(max-width:900px){.nav{gap:30px}.nav nav{gap:22px}}
-@media(max-width:620px){.nav{height:70px;margin:0 22px;gap:15px}footer{margin-left:22px;margin-right:22px}}
+@media(max-width:620px){.nav{height:70px;margin:0 22px;gap:15px}.nav-end{gap:10px}.nav-login{font-size:13px}footer{margin-left:22px;margin-right:22px}}
+@media(max-width:400px){.nav{gap:8px}.nav-end{gap:8px}.nav .button{font-size:12px;padding:8px 10px}}
 
 /* More breathing room through the page without altering demo internals. */
 .hero{padding-top:64px;padding-bottom:42px}

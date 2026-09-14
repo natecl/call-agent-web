@@ -39,8 +39,8 @@ import { onRequestPost as billingCancelPost } from '../functions/api/billing/can
 import { onRequest as homeMiddleware } from '../functions/_middleware.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE_HOME_SHA = '8c84c3b942ec59982fcbb3836307a44f67ee67054845fce0ab273bd7a14a7e45';
-const LIVE_HOME_BYTES = 8760;
+const LIVE_HOME_SHA = '8b21a11d923c13de806c6cfaa055f16e345e409e53ffbdb754c3f743f4762e78';
+const LIVE_HOME_BYTES = 8868;
 const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
 const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
@@ -225,6 +225,9 @@ ok('no stub banners in checkout pages', !/Stub —/.test(read('public/account.ht
 ok('no Stripe secret in public/', !/sk_test_|sk_live_|whsec_/.test(publicBlob));
 ok('no live publishable key in public/', !/pk_live_/.test(publicBlob));
 ok('home still has You text / Watch a call', /You text\./.test(read('public/index.html')) && /Watch a call/.test(read('public/index.html')));
+const homeHtml = read('public/index.html');
+ok('home header has Log in', /<header class="nav">[\s\S]*class="nav-login" href="login\.html">Log in<\/a>/.test(homeHtml));
+ok('home header and hero share Text Treena to get started sms CTA', (homeHtml.match(/class="button primary text-relay" href="sms:\+12138653024">Text Treena to get started<\/a>/g) || []).length === 2);
 
 const pricing = read('public/pricing.html') + read('public/pricing/index.html');
 ok('pricing has Personal $20', /Personal/.test(pricing) && /\$20/.test(pricing) && /30 connected min/.test(pricing) && /\$0\.15/.test(pricing));
@@ -1132,7 +1135,7 @@ ok('privacy directory index points How it works at home', /href="\.\.\/index\.ht
 
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
-ok('FEATURE_MAP live home SHA is 8760-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8760/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap));
+ok('FEATURE_MAP live home SHA is 8868-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8868/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
