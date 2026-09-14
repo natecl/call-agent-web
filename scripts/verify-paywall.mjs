@@ -27,7 +27,7 @@ import { shouldRouteToDashboard } from '../functions/_lib/route.js';
 import { DEFAULT_TREENA_IMESSAGE_E164, treenaIMessageView } from '../functions/_lib/imessage.js';
 import { appleClientId, appleMissing, APPLE_SERVICES_ID, googleMissing, handleGoogleCallback, oauthStatus, signPayload, startAppleOAuth, startGoogleOAuth, verifyPayload } from '../functions/_lib/auth.js';
 import { continuePathAfterIdentity, lookupPaidAccount, resolveAccount } from '../functions/_lib/stripe_account.js';
-import { complimentaryEmails, isComplimentaryEmail } from '../functions/_lib/entitlement.js';
+import { complimentaryEmails, isComplimentaryEmail, isComplimentaryGrant } from '../functions/_lib/entitlement.js';
 import { onRequest as authOnRequest } from '../functions/api/auth/[[path]].js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
 import { onRequestPost as accountPost } from '../functions/api/account.js';
@@ -231,14 +231,20 @@ ok('no Stripe secret in public/', !/sk_test_|sk_live_|whsec_/.test(publicBlob));
 ok('no live publishable key in public/', !/pk_live_/.test(publicBlob));
 ok('home still has You text / Watch a call', /You text\./.test(read('public/index.html')) && /Watch a call/.test(read('public/index.html')));
 const homeHtml = read('public/index.html');
-ok('home header has Log in', /<header class="nav">[\s\S]*class="nav-login" href="login\.html">Log in<\/a>/.test(homeHtml));
-ok('home header and hero share Text Treena to get started sms CTA', (homeHtml.match(/class="button primary text-relay" href="sms:\+12138653024">Text Treena to get started<\/a>/g) || []).length === 2);
+ok('home header has Get started then Log in', /<header class="nav">[\s\S]*<div class="nav-end"><a class="button primary" href="pricing\.html">Get started<\/a><a class="nav-login" href="login\.html">Log in<\/a><\/div>/.test(homeHtml));
+ok('home hero keeps Text Treena to get started sms CTA', (homeHtml.match(/class="button primary text-relay" href="sms:\+12138653024">Text Treena to get started<\/a>/g) || []).length === 1);
+ok('home header Get started is not sms', !/<header class="nav">[\s\S]*text-relay[\s\S]*<\/header>/.test(homeHtml));
+ok('home closing CTA is Get started', /<section class="closing">[\s\S]*?href="pricing\.html">Get started<\/a>[\s\S]*?<\/section>/.test(homeHtml) && !/<section class="closing">[\s\S]*?Text Treena[\s\S]*?<\/section>/.test(homeHtml));
+ok('home header tabs match pricing (no Log in in tab row)', /<nav aria-label="Main navigation"><a href="pricing\.html">Pricing<\/a><a href="privacy\.html">Privacy<\/a><a href="#how-it-works">How it works<\/a><a href="#use-cases">What it can do<\/a><\/nav>/.test(homeHtml));
 
 const pricing = read('public/pricing.html') + read('public/pricing/index.html');
 ok('pricing has Personal $20', /Personal/.test(pricing) && /\$20/.test(pricing) && /30 connected min/.test(pricing) && /\$0\.15/.test(pricing));
 ok('pricing has Plus $40', /Plus/.test(pricing) && /\$40/.test(pricing) && /90/.test(pricing) && /\$0\.12/.test(pricing));
 ok('pricing CTAs go to account with plan', /account\.html\?plan=personal/.test(pricing) && /account\.html\?plan=plus/.test(pricing));
 ok('pricing cards do not jump to start', !/plan-card[\s\S]*start\.html/.test(pricing));
+ok('pricing hero says choose the plan', /Choose the plan you need/.test(pricing) && !/Choose the room you need/.test(pricing));
+ok('pricing included FAQ starts closed', !/<details open>/.test(pricing) && /<details><summary>What’s included in each plan\?<\/summary>/.test(pricing));
+ok('pricing header chrome is Get started then Log in', /<div class="nav-end"><a class="button primary" href="pricing\.html">Get started<\/a><a class="nav-login" href="login\.html">Log in<\/a><\/div>/.test(read('public/pricing.html')) && /<div class="nav-end"><a class="button primary" href="\.\.\/pricing\.html">Get started<\/a><a class="nav-login" href="\.\.\/login\.html">Log in<\/a><\/div>/.test(read('public/pricing/index.html')));
 ok('no trial / free forever / annual / team / enterprise', !/\btrial\b/i.test(pricing.replace(/no trial/gi, '')) && !/free forever/i.test(pricing) && !/annual/i.test(pricing) && !/enterprise/i.test(pricing) && !/\bteam\b/i.test(pricing));
 
 const pay = read('public/pay.html');
@@ -745,7 +751,7 @@ ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /
 ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
 ok('_redirects aliases signin to /login', /\/signin \/login 301/.test(read('public/_redirects')) && existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')));
 ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
-ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/login.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
+ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/start.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
 ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));
 ok('imessage helper defaults to Cap DID', treenaIMessageView({}).e164 === '+12138653024' && treenaIMessageView({ PUBLIC_TREENA_IMESSAGE_E164: '+14155550100' }).e164 === '+14155550100');
 
@@ -814,6 +820,7 @@ ok('auth.js advances signed-in signup off Your details', /location\.replace\(pay
 ok('pay collects phone if OAuth skipped account details', /id="pay-phone"/.test(read('public/pay.html')) && /id="pay-details"/.test(read('public/pay.html')) && /id="pay-phone"/.test(read('public/pay/index.html')));
 
 ok('complimentary env parses allowlist', complimentaryEmails({ COMPLIMENTARY_ENTITLEMENT_EMAILS: 'Nate@usetreena.com, ops@usetreena.com' }).includes('nate@usetreena.com') && isComplimentaryEmail({ COMPLIMENTARY_ENTITLEMENT_EMAILS: 'nate@usetreena.com' }, 'Nate@usetreena.com') && !isComplimentaryEmail({}, 'nate@usetreena.com'));
+ok('complimentary grant is not a Customer Portal account', isComplimentaryGrant({ complimentary: true }) === true && isComplimentaryGrant({ complimentary: true, subscriptionId: 'sub_paid' }) === false && isComplimentaryGrant({ complimentary: false }) === false);
 
 const grantEnv = {
   ...testEnv,
@@ -888,7 +895,8 @@ ok('dashboard has usage billing threads observability settings', /id="usage"/.te
 ok('dashboard billing TEST badge is env-gated', /class="test-badge"/.test(dashboardHtml) && /data-stripe-test-only/.test(dashboardHtml) && /No real charge/.test(dashboardHtml) && /Billed on Stripe/.test(dashboardHtml));
 ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
 ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboardHtml) && /id="manage-billing"/.test(dashboardHtml) && /id="cancel-plan"/.test(dashboardHtml) && /Stripe Customer Portal/.test(dashboardHtml));
-ok('dashboard complimentary grant copy', /Complimentary access\. No Stripe charge/.test(dashboardHtml) && /data-complimentary-only/.test(dashboardHtml));
+ok('dashboard complimentary grant copy', /Complimentary access\. No Stripe charge/.test(dashboardHtml) && /data-complimentary-only/.test(dashboardHtml) && /Manage billing is for paid Stripe subscriptions/.test(dashboardHtml) && !/Manage billing opens Stripe Customer Portal/.test(dashboardHtml));
+ok('dashboard JS hides Manage billing for complimentary grants', /manage\.hidden = hidePortal/.test(read('public/checkout.js')) && /Complimentary accounts do not use Stripe Customer Portal/.test(read('functions/api/billing/portal.js')));
 ok('dashboard settings phone is the user number', /id="settings-phone"/.test(dashboardHtml) && /Not Treena’s shared bot number/.test(dashboardHtml) && /id="settings-retain"/.test(dashboardHtml) && !/id="settings-retain"[^>]*checked/.test(dashboardHtml));
 ok('dashboard has no raw card fields', !/card number|last4|expir/i.test(dashboardHtml));
 ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
@@ -1183,7 +1191,7 @@ try {
     env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
   });
   const grantDashBody = await grantDashRes.json();
-  ok('complimentary dashboard loads without a paid subscription', grantDashRes.status === 200 && grantDashBody.ok === true && grantDashBody.billing.complimentary === true && grantDashBody.billing.status === 'complimentary' && grantDashBody.billing.periodEnd == null && grantDashBody.billing.noRealCharge === true && grantDashBody.billing.plan === 'personal');
+  ok('complimentary dashboard loads without a paid subscription', grantDashRes.status === 200 && grantDashBody.ok === true && grantDashBody.billing.complimentary === true && grantDashBody.billing.status === 'complimentary' && grantDashBody.billing.periodEnd == null && grantDashBody.billing.noRealCharge === true && grantDashBody.billing.plan === 'personal' && grantDashBody.billing.canManageBilling === false);
 
   const grantPortalRes = await billingPortalPost({
     request: new Request('https://usetreena.com/api/billing/portal', {
@@ -1194,7 +1202,18 @@ try {
     env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
   });
   const grantPortalBody = await grantPortalRes.json();
-  ok('complimentary Manage billing opens Stripe Customer Portal', grantPortalRes.status === 200 && String(grantPortalBody.url).startsWith('https://billing.stripe.com/'));
+  ok('complimentary Manage billing is refused without Customer Portal', grantPortalRes.status === 403 && grantPortalBody.error === 'Complimentary accounts do not use Stripe Customer Portal');
+
+  const grantPortalStale = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: grantDashCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({ sessionId: 'cs_test_stale' }),
+    }),
+    env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret, STRIPE_SECRET_KEY: 'sk_live_verifier' },
+  });
+  const grantPortalStaleBody = await grantPortalStale.json();
+  ok('complimentary portal does not require a live Checkout Session', grantPortalStale.status === 403 && grantPortalStaleBody.error === 'Complimentary accounts do not use Stripe Customer Portal' && !/Missing live Checkout Session/.test(JSON.stringify(grantPortalStaleBody)));
 } finally {
   globalThis.fetch = previousFetchGrant;
 }

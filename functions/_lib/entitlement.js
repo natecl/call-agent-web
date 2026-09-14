@@ -19,3 +19,19 @@ export function isComplimentaryEmail(env, email) {
   if (!value) return false;
   return complimentaryEmails(env).includes(value);
 }
+
+/**
+ * Complimentary prove grant with no paid Stripe subscription.
+ * These accounts have no Checkout Session — do not open Customer Portal.
+ * A later paid subscription on the same allowlisted email keeps the portal.
+ */
+export function isComplimentaryGrant(view) {
+  if (!view || !view.complimentary) return false;
+  if (view.subscriptionId) return false;
+  const sub = view.subscription;
+  if (sub && sub.id) {
+    const status = String(sub.status || '');
+    if (status && status !== 'incomplete_expired' && status !== 'canceled') return false;
+  }
+  return true;
+}
