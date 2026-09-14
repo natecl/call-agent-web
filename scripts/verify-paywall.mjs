@@ -192,6 +192,8 @@ const liveEnv = {
 };
 
 ok('home keeps iMessage line', read('public/index.html').includes(IMESSAGE_LINE));
+ok('treena theme + dashboard UI files present', existsSync(join(root, 'public/treena-theme.css')) && existsSync(join(root, 'public/dashboard-ui.css')) && existsSync(join(root, 'public/dashboard-ui.js')) && existsSync(join(root, 'public/assets/treena-icon.svg')));
+ok('public pages load treena-theme.css', ['public/index.html', 'public/account.html', 'public/login.html', 'public/pay.html', 'public/start.html', 'public/pricing.html', 'public/privacy.html', 'public/dashboard.html'].every((file) => read(file).includes('treena-theme.css')));
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
@@ -1234,8 +1236,11 @@ ok('privacy chrome still Text Treena', /Text Treena/.test(privacy) && /class="[^
 ok('privacy directory index points How it works at home', /href="\.\.\/index\.html#how-it-works"/.test(read('public/privacy/index.html')));
 
 const featureMap = read('docs/FEATURE_MAP.md');
+const workingHome = readFileSync(join(root, 'public/index.html'));
+const workingHomeSha = createHash('sha256').update(workingHome).digest('hex');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
 ok('FEATURE_MAP live home SHA is 8868-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8868/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
+ok('FEATURE_MAP working-tree home SHA matches public/index.html', featureMap.includes(workingHomeSha) && featureMap.includes(String(workingHome.length)));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));

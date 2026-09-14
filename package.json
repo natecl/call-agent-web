@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler pages dev public --compatibility-date=2026-09-12",
-    "verify": "node scripts/verify-paywall.mjs",
+    "verify": "node scripts/verify-paywall.mjs && node --test scripts/dashboard-ui.test.mjs",
     "verify:paywall": "node scripts/verify-paywall.mjs",
     "deploy": "wrangler pages deploy public --project-name=call-agent"
   },

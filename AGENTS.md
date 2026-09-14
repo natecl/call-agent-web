@@ -14,7 +14,11 @@ Status words: **shipped**, **sot-ready**, **not-started**.
 
 ## TRE-22 home
 
-Home is unfrozen. Pixel owns restyle. Do not invent a product UX redesign. Keep “Your phone call agent, right in iMessage.”
+Home is unfrozen. Pixel restyle from `recover/treena-ui-redesign` is **UI-only**. Keep “Your phone call agent, right in iMessage.” Header Log in + Text Treena (`sms:+12138653024`) stay.
+
+## Treena UI redesign
+
+UI-only: `public/treena-theme.css` (tokens and page styling), `public/motion.js` (nav/page/focus motion), `public/app.js` (home demo and scroll playback), `public/dashboard-ui.css` / `public/dashboard-ui.js` (dashboard presentation). Visual brief: [`docs/TREENA_DESIGN_SYSTEM.md`](docs/TREENA_DESIGN_SYSTEM.md). Preserve existing IDs, routes, forms, and API contracts. Do not rewrite billing, OAuth, or CTA destinations.
 
 ## Accounts (this repo)
 
