@@ -187,9 +187,25 @@
     fillDate('[data-cancel-effective-at]', cancelAt);
     const cancelBtn = document.getElementById('cancel-plan');
     if (cancelBtn) {
-      cancelBtn.hidden = Boolean(canceling) || (billed && billed.status === 'canceled');
+      cancelBtn.hidden = Boolean(canceling)
+        || (billed && billed.status === 'canceled')
+        || Boolean(billed && billed.complimentary)
+        || !(billed && billed.subscriptionId);
       cancelBtn.disabled = false;
     }
+  }
+
+  function applyComplimentary(billed) {
+    const grant = Boolean(billed && billed.complimentary);
+    document.querySelectorAll('[data-complimentary-only]').forEach((el) => {
+      el.hidden = !grant;
+    });
+    if (!grant) return;
+    document.querySelectorAll('[data-stripe-live-only]').forEach((el) => {
+      el.hidden = true;
+    });
+    const cancelBtn = document.getElementById('cancel-plan');
+    if (cancelBtn) cancelBtn.hidden = true;
   }
 
   function applyOAuthSession(me) {
@@ -207,6 +223,7 @@
     try {
       if (me.email) sessionStorage.setItem(KEY.email, me.email);
       if (me.name) sessionStorage.setItem(KEY.name, me.name);
+      if (me.phone) sessionStorage.setItem(KEY.phone, me.phone);
     } catch (_) {}
   }
 
@@ -343,21 +360,56 @@
   }
 
   if (page === 'pay') {
-    let email = null;
-    let phone = null;
-    try {
-      email = sessionStorage.getItem(KEY.email);
-      phone = sessionStorage.getItem(KEY.phone);
-    } catch (_) {}
-    if (!email || !phone) {
-      location.replace(href('account.html', plan.id));
-      return;
-    }
-    fill('[data-account-email]', email);
-    fill('[data-account-phone]', phone);
-    let retain = 'off';
-    try { retain = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off'; } catch (_) {}
-    showRetain(retain);
+    (async () => {
+      let email = null;
+      let phone = null;
+      try {
+        email = sessionStorage.getItem(KEY.email);
+        phone = sessionStorage.getItem(KEY.phone);
+      } catch (_) {}
+      try {
+        const me = await fetch('/api/auth/me', { credentials: 'same-origin' }).then((res) => res.json());
+        applyOAuthSession(me);
+        if (me && me.signedIn) {
+          if (me.hasAccount) {
+            location.replace('/dashboard');
+            return;
+          }
+          if (!email && me.email) email = me.email;
+          if (!phone && me.phone) phone = me.phone;
+          try {
+            if (me.email) sessionStorage.setItem(KEY.email, me.email);
+            if (me.phone) sessionStorage.setItem(KEY.phone, me.phone);
+            if (me.name) sessionStorage.setItem(KEY.name, me.name);
+            sessionStorage.setItem(KEY.plan, plan.id);
+          } catch (_) {}
+        }
+      } catch (_) {}
+      if (!email) {
+        location.replace(href('account.html', plan.id));
+        return;
+      }
+      fill('[data-account-email]', email);
+      fill('[data-account-phone]', phone || '');
+      showRow('[data-account-phone-row]', Boolean(phone));
+      const details = document.getElementById('pay-details');
+      const phoneInput = document.getElementById('pay-phone');
+      if (!phone) {
+        if (details) details.hidden = false;
+        if (phoneInput) {
+          phoneInput.required = true;
+          phoneInput.value = '';
+        }
+      } else if (phoneInput) {
+        phoneInput.required = false;
+        phoneInput.value = phone;
+      }
+      let retain = 'off';
+      try { retain = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off'; } catch (_) {}
+      showRetain(retain);
+      const retainInput = document.getElementById('pay-retain');
+      if (retainInput) retainInput.checked = retain === 'on';
+    })();
   }
 
   if (page === 'start') {
@@ -546,6 +598,7 @@
         }, result.sessionId || sessionId);
         const billed = result.billing || {};
         applyStripeMode(billed);
+        applyComplimentary(billed);
         const usage = result.usage || {};
         const billedPlan = PLANS[billed.plan];
         if (billedPlan) showPlan(billedPlan);
@@ -677,10 +730,24 @@
         phone = sessionStorage.getItem(KEY.phone) || '';
         retainAfterCall = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off';
       } catch (_) {}
+      const phoneInput = document.getElementById('pay-phone');
+      const retainInput = document.getElementById('pay-retain');
+      if (phoneInput && phoneInput.value.trim()) {
+        const typed = normalizeE164(phoneInput.value);
+        phoneInput.setCustomValidity(typed ? '' : 'Use an E.164 phone number, like +14155552671');
+        if (typed) phone = typed;
+      }
+      if (retainInput) retainAfterCall = retainInput.checked ? 'on' : 'off';
+      if (phoneInput && phoneInput.required && !payForm.reportValidity()) return;
       if (!email || !phone) {
         location.replace(href('account.html', plan.id));
         return;
       }
+      try {
+        sessionStorage.setItem(KEY.email, email);
+        sessionStorage.setItem(KEY.phone, phone);
+        sessionStorage.setItem(KEY.retain, retainAfterCall);
+      } catch (_) {}
       if (submit) {
         submit.disabled = true;
         submit.textContent = 'Redirecting to Stripe…';

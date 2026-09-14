@@ -1,15 +1,26 @@
 (function () {
   const DEFAULT_NEXT = '/account.html?plan=personal';
 
-  function nextPath() {
+  function storedPlan() {
     const params = new URLSearchParams(location.search);
     const plan = params.get('plan');
-    if (plan === 'personal' || plan === 'plus') return `/account.html?plan=${encodeURIComponent(plan)}`;
+    if (plan === 'personal' || plan === 'plus') return plan;
     try {
       const stored = sessionStorage.getItem('treena-plan');
-      if (stored === 'personal' || stored === 'plus') return `/account.html?plan=${encodeURIComponent(stored)}`;
+      if (stored === 'personal' || stored === 'plus') return stored;
     } catch (_) {}
+    return 'personal';
+  }
+
+  function nextPath() {
+    const plan = storedPlan();
+    if (plan === 'personal' || plan === 'plus') return `/account.html?plan=${encodeURIComponent(plan)}`;
     return DEFAULT_NEXT;
+  }
+
+  function payPath() {
+    const plan = storedPlan();
+    return `/pay.html?plan=${encodeURIComponent(plan)}`;
   }
 
   function showError(message, missing) {
@@ -58,12 +69,24 @@
     .then((cfg) => applyMissing(cfg.oauth))
     .catch(() => {});
 
+  const page = document.body.getAttribute('data-page');
+
   fetch('/api/auth/me')
     .then((res) => res.json())
     .then((me) => {
       if (!me || !me.signedIn) return;
       if (me.hasAccount) {
         location.replace('/dashboard');
+        return;
+      }
+      try {
+        if (me.email) sessionStorage.setItem('treena-email', me.email);
+        if (me.name) sessionStorage.setItem('treena-name', me.name);
+        if (me.phone) sessionStorage.setItem('treena-phone', me.phone);
+        sessionStorage.setItem('treena-plan', storedPlan());
+      } catch (_) {}
+      if (page === 'account' || page === 'login') {
+        location.replace(payPath());
         return;
       }
       const email = document.getElementById('email');
