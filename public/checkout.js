@@ -630,6 +630,24 @@
             name: saved.name,
           }, result.sessionId);
           fill('[data-first-name]', saved.firstName || firstNameFrom(saved.name) || 'there');
+          if (typeof window.renderTreenaDashboard === 'function') {
+            window.renderTreenaDashboard({
+              ...result,
+              name: saved.name,
+              phone: saved.phone,
+              firstName: saved.firstName || firstNameFrom(saved.name),
+              settings: {
+                ...(result.settings || {}),
+                name: saved.name,
+                phone: saved.phone,
+                retainAfterCall: saved.retainAfterCall,
+              },
+              user: {
+                ...(result.user || {}),
+                retain_call_artifacts: saved.retainAfterCall === 'on',
+              },
+            });
+          }
           if (savedNote) savedNote.hidden = false;
         } catch (error) {
           showError('settings-error', error.message || 'Could not save settings');

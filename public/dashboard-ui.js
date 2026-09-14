@@ -50,8 +50,15 @@
       const bar = meter.querySelector('span');
       if (bar) bar.style.width = `${Math.min(100,percentage)}%`;
     }
-    const preference = result.user && result.user.retain_call_artifacts;
+    const settingsRetain = result.settings && result.settings.retainAfterCall;
+    const flyRetain = result.user && result.user.retain_call_artifacts;
+    const on = settingsRetain === 'on' || settingsRetain === true
+      || ((settingsRetain == null || settingsRetain === '') && (flyRetain === true || flyRetain === 'on'));
     const retain = document.querySelector('#dashboard-retain');
-    if (retain) retain.checked = preference === true || preference === 'on';
+    if (retain) {
+      retain.checked = on;
+      retain.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+    fill('#privacy-retain-heading', on ? 'Saving is on' : 'Off by default');
   };
 })();

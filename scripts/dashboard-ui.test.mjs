@@ -36,4 +36,17 @@ test('profile values remain text and retention preference reflects account data'
  const el=render({name:'<script>alert(1)</script>',user:{retain_call_artifacts:true}});
  assert.equal(el('[data-profile-name]').textContent,'<script>alert(1)</script>');
  assert.equal(el('#dashboard-retain').checked,true);
+ assert.equal(el('#dashboard-retain').attributes['aria-checked'],'true');
+ assert.equal(el('#privacy-retain-heading').textContent,'Saving is on');
+});
+test('privacy summary uses persisted settings.retainAfterCall when Fly user is absent',()=>{
+ const el=render({settings:{retainAfterCall:'on'}});
+ assert.equal(el('#dashboard-retain').checked,true);
+ assert.equal(el('#privacy-retain-heading').textContent,'Saving is on');
+});
+test('privacy summary stays Off by default when retain is off',()=>{
+ const el=render({settings:{retainAfterCall:'off'},user:{retain_call_artifacts:false}});
+ assert.equal(el('#dashboard-retain').checked,false);
+ assert.equal(el('#dashboard-retain').attributes['aria-checked'],'false');
+ assert.equal(el('#privacy-retain-heading').textContent,'Off by default');
 });
