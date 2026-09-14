@@ -19,18 +19,18 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav">
   <a class="brand" href="../index.html" aria-label="Treena home">Treena</a>
-  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
-  <a class="button primary" href="../account.html?plan=personal">Text Treena</a>
+  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../login.html">Log in</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
+  <a class="button primary text-relay" href="sms:+12138653024">Text Treena</a>
 </header>
 <main id="main" class="page-main page-flow"><ol class="flow-steps" aria-label="Setup progress"><li class="complete"><span>1</span>Your details</li><li class="complete"><span>2</span>Review & pay</li><li class="current" aria-current="step"><span>3</span>Get started</li></ol><div class="flow-panel">
   <div id="start-pending" role="status" aria-live="polite">
     <h1>Confirming payment</h1>
-    <p class="page-lead">Checking your Stripe TEST subscription…</p>
+    <p class="page-lead">Checking your Stripe subscription…</p>
   </div>
   <div id="start-name" hidden>
     <p class="eyebrow">One more thing</p>
     <h1>What should Treena<br>call you?</h1>
-    <p class="page-lead">Treena uses your first name on the call — not the product name. Your test subscription is confirmed.</p>
+    <p class="page-lead">Treena uses your first name on the call — not the product name. <span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span></p>
     <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
     <form id="start-name-form">
       <div class="field">
@@ -43,14 +43,14 @@
       </div>
     </form>
     <p class="flow-error" id="name-error" role="alert" hidden></p>
-    <p class="stub-note">Name lives in account settings after signup. Stripe TEST subscription is active. No real charge.</p>
+    <p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
   <div id="start-ready" hidden>
     <p class="eyebrow">All set</p><h1>A little more<br>off your plate.</h1>
-    <p class="page-lead">Your test subscription is confirmed. Treena’s texting number is coming soon.</p>
+    <p class="page-lead"><span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span> Text Treena at +12138653024.</p>
     <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
-    <p class="page-cta"><button class="button primary text-relay">Text Treena</button></p>
-    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Include the business, their number if you have it, and what you’d like Treena to ask.</p></div><p class="stub-note">Name lives in account settings after signup. Stripe TEST subscription is active. No real charge.</p>
+    <p class="page-cta"><a class="button primary text-relay" href="sms:+12138653024">Text Treena</a></p>
+    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Include the business, their number if you have it, and what you’d like Treena to ask.</p></div><p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
 </div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
@@ -65,11 +65,12 @@
   <button class="dialog-close" aria-label="Close">×</button>
   <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
   <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
-  <p>Treena’s number is coming soon. Get a feel for what happens when you hand off a call.</p>
+  <p>Text Treena at +12138653024. That’s the shared iMessage number for everyone.</p>
   <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
 </dialog>
+<script src="../imessage.js?v=20260913-imessage1"></script>
 <script src="../chrome.js?v=20260912-polish"></script>
-<script src="../checkout.js"></script>
+<script src="../checkout.js?v=20260914-live1"></script>
 <script src="../motion.js?v=20260912-motion1"></script>
 </body>
 </html>

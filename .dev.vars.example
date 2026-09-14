@@ -1,5 +1,5 @@
-# Stripe TEST only. Never put sk_live_ or pk_live_ here.
-# Copy to .dev.vars for `npm run dev`. Do not commit real values.
+# Local default is Stripe TEST. Pages Production is live after Cap GO (sk_live_ / pk_live_).
+# Never commit real keys. Copy to .dev.vars for `npm run dev`.
 
 STRIPE_SECRET_KEY=sk_test_replace_me
 STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
@@ -8,7 +8,8 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # STRIPE_PRICE_PERSONAL=price_...
 # STRIPE_PRICE_PLUS=price_...
 
-# Optional. Stripe TEST webhook signing secret for POST /api/webhook.
+# Optional. Unset on Pages today — POST /api/webhook returns 503 until ops sets this.
+# Do not invent a value.
 # STRIPE_WEBHOOK_SECRET=whsec_...
 
 # HMAC shared with Fly ACCOUNT_SYNC_SECRET. Website POSTs /accounts/sync
@@ -17,6 +18,22 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 # ACCOUNT_SYNC_SECRET=replace_me
 # CALL_AGENT_SYNC_URL=https://hidden-beacon-080.fly.dev/accounts/sync
 # PUBLIC_BASE_URL=https://hidden-beacon-080.fly.dev
+
+# Shared Treena iMessage bot (Linq sandbox DID; ride until ~Sep 18).
+# Ops may swap later. Do not invent a different number.
+PUBLIC_TREENA_IMESSAGE_E164=+12138653024
+# LINQ_FROM_E164=+12138653024
+
+# Google OAuth + Apple sign-in. Pages Production has these secrets.
+# Apple Services ID defaults to com.usetreena.signin if APPLE_CLIENT_ID is unset.
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# APPLE_CLIENT_ID=com.usetreena.signin
+# APPLE_TEAM_ID=
+# APPLE_KEY_ID=
+# APPLE_PRIVATE_KEY=
+# AUTH_SESSION_SECRET=
+# AUTH_PUBLIC_ORIGIN=https://usetreena.com
 
 # Optional. npm run verify GET {origin}/ for live SHA + iMessage subhead.
 # Unset in default CI.

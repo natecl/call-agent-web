@@ -1,5 +1,5 @@
 import { getPlan } from './plans.js';
-import { stripeRequest } from './stripe.js';
+import { stripeModeFromEnv, stripeRequest } from './stripe.js';
 import { firstNameFrom, getAccountDashboard } from './sync.js';
 import { verifyCheckoutSession } from './checkout.js';
 
@@ -40,11 +40,14 @@ export async function billingView(env, sessionView, fetchImpl) {
       status = 'active';
     }
   }
+  const mode = stripeModeFromEnv(env) || 'test';
+  const live = mode === 'live';
   return {
-    mode: 'test',
-    test: true,
-    badge: 'TEST',
-    noRealCharge: true,
+    mode,
+    test: !live,
+    live,
+    badge: live ? null : 'TEST',
+    noRealCharge: !live,
     plan: plan.id,
     planName: plan.name,
     amountCents: plan.amountCents,

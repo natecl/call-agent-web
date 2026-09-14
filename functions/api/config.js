@@ -1,23 +1,19 @@
 import { PLANS } from '../_lib/plans.js';
 import { errorResponse, json } from '../_lib/http.js';
-import { requireTestPublishable, requireTestSecret } from '../_lib/stripe.js';
+import { stripeView } from '../_lib/stripe.js';
+import { treenaIMessageView } from '../_lib/imessage.js';
+import { oauthStatus } from '../_lib/auth.js';
 
 export async function onRequestGet(context) {
   try {
     const env = context.env || {};
-    let configured = false;
-    try {
-      requireTestSecret(env.STRIPE_SECRET_KEY);
-      configured = true;
-    } catch (error) {
-      if (error.message === 'Live Stripe keys are not allowed') throw error;
-      configured = false;
-    }
-    const publishableKey = requireTestPublishable(env.STRIPE_PUBLISHABLE_KEY);
+    const stripe = stripeView(env);
     return json({
-      mode: 'test',
-      configured,
-      publishableKey: publishableKey || null,
+      mode: stripe.mode,
+      stripeLive: stripe.stripeLive,
+      configured: stripe.configured,
+      publishableKey: stripe.publishableKey,
+      webhookConfigured: Boolean(env.STRIPE_WEBHOOK_SECRET),
       prices: {
         personal: Boolean(env.STRIPE_PRICE_PERSONAL),
         plus: Boolean(env.STRIPE_PRICE_PLUS),
@@ -29,6 +25,8 @@ export async function onRequestGet(context) {
         minutes: plan.minutes,
         overage: plan.overage,
       })),
+      imessage: treenaIMessageView(env),
+      oauth: oauthStatus(env),
     });
   } catch (error) {
     return errorResponse(error);

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Log in to Treena.">
+  <title>Log in — Treena</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
+  <link rel="preload" href="assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=20260912-paytest">
+  <link rel="stylesheet" href="subpages.css?v=20260912-system2">
+<link rel="stylesheet" href="motion.css?v=20260912-system2">
+</head>
+<body class="subpage" data-page="login" data-base=".">
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="phone" viewBox="0 0 24 24"><path d="M5 3h3l2 5-2 2c1.5 3 3 4.5 6 6l2-2 5 2v3c0 2-2 3-4 2C9 19 5 15 3 7c-1-2 0-4 2-4Z" fill="currentColor" stroke="none"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="nav">
+  <a class="brand" href="index.html" aria-label="Treena home">Treena</a>
+  <nav aria-label="Main navigation"><a href="pricing.html">Pricing</a><a href="privacy.html">Privacy</a><a href="login.html" aria-current="page">Log in</a><a href="index.html#how-it-works">How it works</a><a href="index.html#use-cases">What it can do</a></nav>
+  <a class="button primary text-relay" href="sms:+12138653024">Text Treena</a>
+</header>
+<main id="main" class="page-main page-flow">
+  <div class="flow-panel">
+    <p class="eyebrow">Welcome back</p>
+    <h1>Log in to Treena</h1>
+    <p class="page-lead">Sign in with Google or Apple. Or continue with email and password to create or resume checkout.</p>
+    <div class="oauth-actions">
+      <button class="button secondary" type="button" data-oauth="google">Sign in with Google</button>
+      <button class="button secondary" type="button" data-oauth="apple">Sign in with Apple</button>
+    </div>
+    <p class="oauth-config-note" id="oauth-config-note" hidden></p>
+    <p class="oauth-signed-in" id="oauth-signed-in" hidden></p>
+    <p class="auth-divider">or continue with email</p>
+    <p class="flow-error" id="auth-error" role="alert" hidden></p>
+    <form id="login-email-form" action="account.html" method="get">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field" id="password-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8">
+      </div>
+      <div class="flow-actions">
+        <button class="button primary" type="submit">Continue to account <span aria-hidden="true">→</span></button>
+      </div>
+    </form>
+    <a class="change-plan" href="account.html?plan=personal">Create an account</a>
+    <p class="stub-note">Password login continues into the existing email path. Everyone texts the same Treena iMessage number: +12138653024. Your own phone is stored on the account.</p>
+  </div>
+  <p class="flow-footer">A little less calling. A little more living.</p>
+</main>
+<footer>
+  <a class="brand" href="index.html">Treena</a>
+  <span class="footer-right">
+    <span>A little less calling. A little more living.</span>
+    <a href="privacy.html">Privacy</a>
+    <a href="pricing.html">Pricing</a>
+    <a href="login.html" aria-current="page">Log in</a>
+  </span>
+</footer>
+<dialog id="contact-dialog" aria-labelledby="contact-title">
+  <button class="dialog-close" aria-label="Close">×</button>
+  <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
+  <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
+  <p>Text Treena at +12138653024. That’s the shared iMessage number for everyone.</p>
+  <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
+</dialog>
+<script src="imessage.js?v=20260913-imessage1"></script>
+<script src="chrome.js?v=20260912-polish"></script>
+<script src="auth.js?v=20260913-oauth1"></script>
+<script src="motion.js?v=20260912-motion1"></script>
+<script>
+(function () {
+  const form = document.getElementById('login-email-form');
+  if (!form) return;
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const email = document.getElementById('email').value.trim();
+    const params = new URLSearchParams(location.search);
+    const plan = params.get('plan') === 'plus' ? 'plus' : 'personal';
+    try { sessionStorage.setItem('treena-email', email); sessionStorage.setItem('treena-plan', plan); } catch (_) {}
+    location.href = `account.html?plan=${encodeURIComponent(plan)}`;
+  });
+})();
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createCheckoutSession, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
 import { PLANS } from '../functions/_lib/plans.js';
-import { requireTestSecret, verifyStripeWebhook } from '../functions/_lib/stripe.js';
+import { requireStripeSecret, stripeMode, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import {
   ACCOUNT_SYNC_SIGNATURE_HEADER,
   DEFAULT_DASHBOARD_URL,
@@ -21,6 +21,9 @@ import {
   syncFromStripeEvent,
 } from '../functions/_lib/sync.js';
 import { billingView, loadDashboard } from '../functions/_lib/dashboard.js';
+import { DEFAULT_TREENA_IMESSAGE_E164, treenaIMessageView } from '../functions/_lib/imessage.js';
+import { appleClientId, appleMissing, APPLE_SERVICES_ID, googleMissing, handleGoogleCallback, oauthStatus, signPayload, startAppleOAuth, startGoogleOAuth, verifyPayload } from '../functions/_lib/auth.js';
+import { onRequest as authOnRequest } from '../functions/api/auth/[[path]].js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
 import { onRequestPost as accountPost } from '../functions/api/account.js';
 import { onRequestGet as sessionGet } from '../functions/api/session.js';
@@ -30,8 +33,8 @@ import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
 import { onRequestGet as billingGet } from '../functions/api/billing.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE_HOME_SHA = '38ec609d848f6bc76b5a13c323b3369e9818708fae0069b65195127e10fb1d77';
-const LIVE_HOME_BYTES = 8697;
+const LIVE_HOME_SHA = '8c84c3b942ec59982fcbb3836307a44f67ee67054845fce0ab273bd7a14a7e45';
+const LIVE_HOME_BYTES = 8760;
 const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
 const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
@@ -71,9 +74,10 @@ function customerFromForm(form, id = 'cus_test_123') {
   };
 }
 
-function mockStripe({ customers = [], session, subscription, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0 } = {}) {
+function mockStripe({ customers = [], session, subscription, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0, live = false } = {}) {
   const calls = [];
   let flyAttempts = 0;
+  const checkoutId = live ? 'cs_live_abc' : 'cs_test_abc';
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url, method: init.method || 'GET', body: init.body || '', headers: init.headers || {} });
     if (String(url).includes('/accounts/dashboard')) {
@@ -118,8 +122,8 @@ function mockStripe({ customers = [], session, subscription, dashboard, onChecko
       const form = new URLSearchParams(String(init.body || ''));
       if (onCheckout) onCheckout(form);
       return jsonResponse({
-        id: 'cs_test_abc',
-        url: 'https://checkout.stripe.com/c/pay/cs_test_abc',
+        id: checkoutId,
+        url: `https://checkout.stripe.com/c/pay/${checkoutId}`,
       });
     }
     if (url.includes('/v1/checkout/sessions/') && (init.method || 'GET') === 'GET') {
@@ -139,6 +143,11 @@ function mockStripe({ customers = [], session, subscription, dashboard, onChecko
 const testEnv = {
   STRIPE_SECRET_KEY: 'sk_test_verifier',
   STRIPE_PUBLISHABLE_KEY: 'pk_test_verifier',
+};
+
+const liveEnv = {
+  STRIPE_SECRET_KEY: 'sk_live_verifier',
+  STRIPE_PUBLISHABLE_KEY: 'pk_live_verifier',
 };
 
 ok('home keeps iMessage line', read('public/index.html').includes(IMESSAGE_LINE));
@@ -164,9 +173,14 @@ const publicFiles = [
   'public/start/index.html',
   'public/dashboard.html',
   'public/dashboard/index.html',
+  'public/login.html',
+  'public/login/index.html',
   'public/checkout.js',
   'public/index.html',
   'public/app.js',
+  'public/imessage.js',
+  'public/auth.js',
+  'public/chrome.js',
 ];
 const publicBlob = publicFiles.map(read).join('\n');
 ok('no stub banners in checkout pages', !/Stub —/.test(read('public/account.html') + read('public/pay.html') + read('public/start.html')));
@@ -189,31 +203,35 @@ ok('dashboard fetches /api/dashboard', /\/api\/dashboard/.test(read('public/chec
 ok('pay no longer marks paid locally', !/KEY\.paid|treena-stub-paid|setItem\([^)]*paid/.test(read('public/checkout.js')));
 ok('start page waits for Stripe session', /session_id/.test(read('public/checkout.js')) && /start-ready/.test(read('public/start.html')));
 ok('pay copy says no trial', /No trial/.test(pay));
-ok('pay mentions Stripe TEST card', /4242 4242 4242 4242/.test(pay));
+ok('pay keeps TEST card copy behind env flag', /4242 4242 4242 4242/.test(pay) && /data-stripe-test-only/.test(pay) && /data-stripe-live-only/.test(pay));
+ok('pay live copy does not claim no real charge by default', /You’ll be charged on Stripe Checkout/.test(pay));
 
 ok('Pages Functions: checkout', existsSync(join(root, 'functions/api/checkout.js')));
 ok('Pages Functions: session', existsSync(join(root, 'functions/api/session.js')));
 ok('Pages Functions: webhook', existsSync(join(root, 'functions/api/webhook.js')));
 ok('Pages Functions: dashboard', existsSync(join(root, 'functions/api/dashboard.js')));
-ok('Pages Functions: billing TEST', existsSync(join(root, 'functions/api/billing.js')));
+ok('Pages Functions: billing', existsSync(join(root, 'functions/api/billing.js')));
 ok('Pages Functions helpers are private (_lib)', existsSync(join(root, 'functions/_lib/checkout.js')));
 ok('locked plans are Personal $20 and Plus $40', PLANS.personal.amountCents === 2000 && PLANS.plus.amountCents === 4000 && Object.keys(PLANS).length === 2);
 
-let liveRejected = false;
-try {
-  requireTestSecret('sk_live_nope');
-} catch (error) {
-  liveRejected = error.message === 'Live Stripe keys are not allowed';
-}
-ok('reject live Stripe secret', liveRejected);
+ok('live Stripe secret is accepted', stripeMode('sk_live_nope') === 'live' && requireStripeSecret('sk_live_nope') === 'live');
+ok('test Stripe secret is accepted', requireStripeSecret('sk_test_verifier') === 'test');
 
 let missingRejected = false;
 try {
-  requireTestSecret('');
+  requireStripeSecret('');
 } catch (error) {
   missingRejected = error.status === 503;
 }
 ok('missing Stripe secret is 503', missingRejected);
+
+let junkRejected = false;
+try {
+  requireStripeSecret('not-a-stripe-key');
+} catch (error) {
+  junkRejected = error.status === 500;
+}
+ok('junk Stripe secret is 500', junkRejected);
 
 let checkoutForm;
 const { fetchImpl, calls } = mockStripe({
@@ -236,6 +254,17 @@ ok('checkout has no trial', !checkoutForm.has('subscription_data[trial_period_da
 ok('personal unit amount is 2000', checkoutForm.get('line_items[0][price_data][unit_amount]') === '2000');
 ok('success lands on /start.html', /\/start\.html\?session_id=\{CHECKOUT_SESSION_ID\}/.test(checkoutForm.get('success_url')));
 ok('cancel returns to /pay.html with plan', /\/pay\.html\?plan=personal/.test(checkoutForm.get('cancel_url')));
+
+const liveCheckout = mockStripe({ live: true });
+const createdLive = await createCheckoutSession(liveEnv, {
+  origin: 'https://usetreena.com',
+  planId: 'personal',
+  email: 'tester@example.com',
+  name: 'Tester',
+  phone: '+14155552671',
+  fetchImpl: liveCheckout.fetchImpl,
+});
+ok('checkout returns LIVE session URL when sk_live_ is set', createdLive.url.startsWith('https://checkout.stripe.com/') && createdLive.id.startsWith('cs_live_'));
 
 const plusMock = mockStripe({
   onCheckout(form) { checkoutForm = form; },
@@ -314,9 +343,24 @@ let liveSession = false;
 try {
   await verifyCheckoutSession(testEnv, 'cs_live_abc', verifyMock.fetchImpl);
 } catch (error) {
-  liveSession = error.message.includes('Live Checkout');
+  liveSession = error.message.includes('does not match TEST');
 }
-ok('live Checkout Sessions rejected', liveSession);
+ok('live Checkout Sessions rejected on TEST keys', liveSession);
+
+const liveVerifyMock = mockStripe({
+  live: true,
+  session: {
+    id: 'cs_live_abc',
+    status: 'complete',
+    payment_status: 'paid',
+    mode: 'subscription',
+    metadata: { plan: 'personal', email: 'tester@example.com', phone: '+14155552671' },
+    customer: 'cus_test_123',
+    subscription: 'sub_test_123',
+  },
+});
+const liveVerified = await verifyCheckoutSession(liveEnv, 'cs_live_abc', liveVerifyMock.fetchImpl);
+ok('session verifier reads Stripe LIVE session', liveVerified.ok && liveVerified.sessionId === 'cs_live_abc');
 
 const previousFetch = globalThis.fetch;
 globalThis.fetch = mockStripe({
@@ -357,14 +401,24 @@ try {
 
 const configRes = await configGet({ request: new Request('https://usetreena.com/api/config'), env: testEnv });
 const configBody = await configRes.json();
-ok('GET /api/config is TEST-only', configRes.status === 200 && configBody.mode === 'test' && configBody.configured === true);
+ok('GET /api/config is TEST when sk_test_ is set', configRes.status === 200 && configBody.mode === 'test' && configBody.configured === true && configBody.stripeLive === false);
 ok('publishable key is pk_test_', String(configBody.publishableKey || '').startsWith('pk_test_'));
+ok('config publishes shared iMessage DID', configBody.imessage && configBody.imessage.e164 === '+12138653024' && configBody.imessage.smsUrl === 'sms:+12138653024' && configBody.imessage.shared === true);
+ok('config exposes webhookConfigured without inventing the secret', configBody.webhookConfigured === false);
 
 const liveConfig = await configGet({
   request: new Request('https://usetreena.com/api/config'),
+  env: liveEnv,
+});
+const liveConfigBody = await liveConfig.json();
+ok('GET /api/config is LIVE when sk_live_ is set', liveConfig.status === 200 && liveConfigBody.mode === 'live' && liveConfigBody.configured === true && liveConfigBody.stripeLive === true);
+ok('live publishable key is pk_live_', String(liveConfigBody.publishableKey || '').startsWith('pk_live_'));
+
+const mismatchConfig = await configGet({
+  request: new Request('https://usetreena.com/api/config'),
   env: { STRIPE_SECRET_KEY: 'sk_live_nope', STRIPE_PUBLISHABLE_KEY: 'pk_test_x' },
 });
-ok('config rejects live secret', configRes.status === 200 && liveConfig.status === 500);
+ok('config rejects live secret + TEST publishable', mismatchConfig.status === 500);
 
 const webhookSecret = 'whsec_verifier';
 const payload = JSON.stringify({
@@ -386,6 +440,16 @@ const webhookRes = await webhookPost({
 });
 const webhookBody = await webhookRes.json();
 ok('POST /api/webhook accepts signed TEST event', webhookRes.status === 200 && webhookBody.received === true);
+
+const missingWebhook = await webhookPost({
+  request: new Request('https://usetreena.com/api/webhook', {
+    method: 'POST',
+    headers: { 'Stripe-Signature': `t=${timestamp},v1=${signature}` },
+    body: payload,
+  }),
+  env: {},
+});
+ok('webhook without STRIPE_WEBHOOK_SECRET is 503', missingWebhook.status === 503);
 
 const badWebhook = await webhookPost({
   request: new Request('https://usetreena.com/api/webhook', {
@@ -409,6 +473,9 @@ const functionsBlob = [
   'functions/api/dashboard.js',
   'functions/api/billing.js',
   'functions/_lib/dashboard.js',
+  'functions/_lib/imessage.js',
+  'functions/_lib/auth.js',
+  'functions/api/auth/[[path]].js',
 ].map(read).join('\n');
 ok('website never opens NEON_DATABASE_URL', !/NEON_DATABASE_URL/.test(functionsBlob));
 ok('account sync URL defaults to Fly origin', accountSyncUrl({}) === DEFAULT_SYNC_URL);
@@ -617,13 +684,90 @@ ok('home still has iMessage line in index', read('public/index.html').includes(I
 ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
 ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
-ok('OAuth provider sign-in absent', !/accounts\.google|Sign in with Google|oauth2/i.test(publicBlob + functionsBlob));
+ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /Sign in with Apple/.test(publicBlob) && /accounts\.google\.com/.test(functionsBlob));
+ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
+ok('_redirects aliases signin to /login', /\/signin \/login 301/.test(read('public/_redirects')) && existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')));
+ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
+ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/login.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
+ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));
+ok('imessage helper defaults to Cap DID', treenaIMessageView({}).e164 === '+12138653024' && treenaIMessageView({ PUBLIC_TREENA_IMESSAGE_E164: '+14155550100' }).e164 === '+14155550100');
+
+const googleMissingKeys = googleMissing({});
+ok('google missing names GOOGLE_CLIENT_ID + secret + AUTH_SESSION_SECRET', googleMissingKeys.includes('GOOGLE_CLIENT_ID') && googleMissingKeys.includes('GOOGLE_CLIENT_SECRET') && googleMissingKeys.includes('AUTH_SESSION_SECRET'));
+ok('apple missing names Apple + AUTH_SESSION_SECRET', appleMissing({}).includes('APPLE_TEAM_ID') && appleMissing({}).includes('APPLE_PRIVATE_KEY') && appleMissing({}).includes('AUTH_SESSION_SECRET') && !appleMissing({}).includes('APPLE_CLIENT_ID'));
+ok('apple client defaults to com.usetreena.signin', appleClientId({}) === APPLE_SERVICES_ID && APPLE_SERVICES_ID === 'com.usetreena.signin');
+ok('oauth status is false without secrets', oauthStatus({}).google === false && oauthStatus({}).apple === false);
+
+const googleBlocked = await startGoogleOAuth({}, new Request('https://usetreena.com/api/auth/google'));
+ok('google start without secrets redirects to /login with missing keys', googleBlocked.status === 302 && /\/login\?/.test(googleBlocked.headers.get('Location')) && /GOOGLE_CLIENT_ID/.test(googleBlocked.headers.get('Location')));
+const appleBlocked = await startAppleOAuth({}, new Request('https://usetreena.com/api/auth/apple'));
+ok('apple start without secrets redirects to /login with missing keys', appleBlocked.status === 302 && /APPLE_TEAM_ID/.test(appleBlocked.headers.get('Location')));
+
+const googleReady = await startGoogleOAuth({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+}, new Request('https://usetreena.com/api/auth/google'));
+ok('google start with secrets redirects to Google', googleReady.status === 302 && String(googleReady.headers.get('Location')).startsWith('https://accounts.google.com/o/oauth2/v2/auth'));
+const googleAuthUrl = new URL(googleReady.headers.get('Location'));
+ok('google callback is usetreena.com/api/auth/google/callback', googleAuthUrl.searchParams.get('redirect_uri') === 'https://usetreena.com/api/auth/google/callback');
+
+const wwwGoogle = await startGoogleOAuth({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+}, new Request('https://www.usetreena.com/api/auth/google'));
+ok('www host pins OAuth callback to apex', new URL(wwwGoogle.headers.get('Location')).searchParams.get('redirect_uri') === 'https://usetreena.com/api/auth/google/callback');
+
+const appleReady = await startAppleOAuth({
+  APPLE_TEAM_ID: 'TEAMID',
+  APPLE_KEY_ID: 'KEYID',
+  APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\nMII\n-----END PRIVATE KEY-----',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+}, new Request('https://usetreena.com/api/auth/apple'));
+const appleAuthUrl = new URL(appleReady.headers.get('Location'));
+ok('apple start with secrets redirects to Apple', appleReady.status === 302 && String(appleReady.headers.get('Location')).startsWith('https://appleid.apple.com/auth/authorize'));
+ok('apple client is com.usetreena.signin', appleAuthUrl.searchParams.get('client_id') === 'com.usetreena.signin');
+ok('apple callback is usetreena.com/api/auth/apple/callback', appleAuthUrl.searchParams.get('redirect_uri') === 'https://usetreena.com/api/auth/apple/callback');
+
+const googleCookies = typeof googleReady.headers.getSetCookie === 'function'
+  ? googleReady.headers.getSetCookie()
+  : [googleReady.headers.get('Set-Cookie')].filter(Boolean);
+const googleCookieHeader = googleCookies.map((item) => String(item).split(';')[0]).join('; ');
+const googleCb = await handleGoogleCallback({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+}, new Request(`https://usetreena.com/api/auth/google/callback?code=abc&state=${encodeURIComponent(googleAuthUrl.searchParams.get('state'))}`, {
+  headers: { Cookie: googleCookieHeader },
+}), async (url) => {
+  if (String(url).includes('oauth2.googleapis.com/token')) {
+    return new Response(JSON.stringify({ access_token: 'atok' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (String(url).includes('openidconnect.googleapis.com')) {
+    return new Response(JSON.stringify({ email: 'nate@usetreena.com', sub: 'gid-1', name: 'Nathan' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  return new Response(JSON.stringify({ error: 'unexpected' }), { status: 500 });
+});
+ok('google callback sets session and returns to account', googleCb.status === 302 && /\/account\.html/.test(googleCb.headers.get('Location')) && /treena_auth=/.test(String(typeof googleCb.headers.getSetCookie === 'function' ? googleCb.headers.getSetCookie().join(';') : googleCb.headers.get('Set-Cookie'))));
+
+const routed = await authOnRequest({
+  request: new Request('https://usetreena.com/api/auth/me'),
+  env: {},
+  params: { path: ['me'] },
+});
+const meBody = await routed.json();
+ok('GET /api/auth/me works without session', routed.status === 200 && meBody.signedIn === false);
+
+const signed = await signPayload('auth-session-secret', { email: 'a@b.com', exp: Math.floor(Date.now() / 1000) + 60 });
+const authPayload = await verifyPayload('auth-session-secret', signed);
+ok('auth payload roundtrip', authPayload.email === 'a@b.com');
 
 const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
 ok('dashboard has four sections', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml));
-ok('dashboard billing TEST badge', /class="test-badge">TEST/.test(dashboardHtml) && /No real charge/.test(dashboardHtml));
+ok('dashboard billing TEST badge is env-gated', /class="test-badge"/.test(dashboardHtml) && /data-stripe-test-only/.test(dashboardHtml) && /No real charge/.test(dashboardHtml) && /Billed on Stripe/.test(dashboardHtml));
 ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
-ok('dashboard threads empty state', /No threads yet\. Text Treena after your number is live\./.test(dashboardHtml));
+ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
 ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
 ok('dashboard directory index exists', existsSync(join(root, 'public/dashboard/index.html')));
 ok('start name gate posts /api/account', /start-name-form/.test(read('public/checkout.js')) && /\/api\/account/.test(read('public/checkout.js')));
@@ -696,7 +840,7 @@ ok('HMAC GET /accounts/dashboard is wired', flyDashboardReq && flyDashboardReq.m
 ok('dashboard GET signs the E.164 phone', flyDashboardReq.headers[ACCOUNT_SYNC_SIGNATURE_HEADER] === await signAccountSync(syncSecret, TEST_PHONE));
 ok('dashboard packages usage minutes + call count', dash.usage.minutesIncluded === 30 && dash.usage.minutesUsed === 0 && dash.usage.callCount === 1 && /update after calls/.test(dash.usage.usageNote));
 ok('dashboard includes mocked thread + call_report', dash.threads.length === 1 && dash.calls.length === 1 && dash.calls[0].call_report.status === 'completed');
-ok('dashboard billing is TEST', dash.billing.test === true && dash.billing.badge === 'TEST' && dash.billing.noRealCharge === true && dash.billing.status === 'active');
+ok('dashboard billing follows TEST keys', dash.billing.test === true && dash.billing.badge === 'TEST' && dash.billing.noRealCharge === true && dash.billing.status === 'active');
 ok('dashboard does not need name when Stripe Customer.name is set', dash.needsName === false && dash.firstName === 'Nathan');
 
 const skippedDash = await getAccountDashboard(testEnv, TEST_PHONE, dashMock.fetchImpl);
@@ -727,7 +871,7 @@ try {
   const req = new Request('https://usetreena.com/api/billing?session_id=cs_test_abc');
   const res = await billingGet({ request: req, env: testEnv });
   const body = await res.json();
-  ok('GET /api/billing is Stripe TEST', res.status === 200 && body.mode === 'test' && body.badge === 'TEST' && body.noRealCharge === true && body.status === 'active');
+  ok('GET /api/billing is Stripe TEST on test keys', res.status === 200 && body.mode === 'test' && body.badge === 'TEST' && body.noRealCharge === true && body.status === 'active');
 } finally {
   globalThis.fetch = previousFetchBill;
 }
@@ -751,7 +895,14 @@ const billed = await billingView(testEnv, namedSession, mockStripe({
   customers: [tre20Customer],
   session: namelessSession,
 }).fetchImpl);
-ok('billing view stays TEST-only', billed.mode === 'test' && billed.amountCents === 2000);
+ok('billing view stays TEST on test keys', billed.mode === 'test' && billed.amountCents === 2000);
+
+const liveBilled = await billingView(liveEnv, namedSession, mockStripe({
+  live: true,
+  customers: [tre20Customer],
+  session: { ...namelessSession, id: 'cs_live_abc' },
+}).fetchImpl);
+ok('billing view is LIVE on live keys', liveBilled.mode === 'live' && liveBilled.live === true && liveBilled.badge === null && liveBilled.noRealCharge === false);
 
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
@@ -769,16 +920,21 @@ ok('privacy directory index points How it works at home', /href="\.\.\/index\.ht
 
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
-ok('FEATURE_MAP live home SHA is 8697-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8697/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap));
+ok('FEATURE_MAP live home SHA is 8760-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8760/.test(featureMap) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
+ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
+ok('FEATURE_MAP Stripe live Cap GO', /Cap GO/.test(featureMap) && /sk_live_/.test(featureMap) && /env-driven/.test(featureMap) && !/live Stripe flip is HOLD/.test(featureMap));
+ok('FEATURE_MAP shared bot + user phone', /\+12138653024/.test(featureMap) && /Not a per-user Treena DID/.test(featureMap));
 ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap) && /no `#name`/.test(featureMap));
 ok('FEATURE_MAP name collected on start and settings copy', /name lives in account settings after signup/.test(featureMap) && featureMap.includes('| `/start.html` | `public/start.html` | shipped |') && /\| post-pay-name \| account \|.*\| shipped \|/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP records Fly account sync', featureMap.includes('| account-fly-sync |') && /ACCOUNT_SYNC_SECRET/.test(featureMap) && /accounts\/sync/.test(featureMap));
 ok('FEATURE_MAP Fly sync is sot-ready / not live', /\| account-fly-sync \| account \|.*\| sot-ready \|/.test(featureMap) && /Do not claim Fly sync live/.test(featureMap) && !/Pages deploy held/.test(featureMap) && !/not on the live Pages host/.test(featureMap) && !/not live Pages/.test(featureMap));
 ok('FEATURE_MAP web does not write Neon', /does not write Neon/.test(featureMap) && /NEON_DATABASE_URL/.test(featureMap) && /sole writer of `users`/.test(featureMap));
-ok('FEATURE_MAP no longer says live Stripe is out of scope for TEST', /Stripe TEST/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
+ok('FEATURE_MAP checkout is env-driven live', /env-driven/.test(featureMap) && /STRIPE_WEBHOOK_SECRET/.test(featureMap) && !/Out of scope for Builder later: live Stripe and real auth/.test(featureMap));
+ok('FEATURE_MAP records Apple Services ID + Google External', /com\.usetreena\.signin/.test(featureMap) && /External/.test(featureMap));
+ok('checkout.js applies env stripe mode', /applyStripeMode/.test(read('public/checkout.js')));
 ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` | `public/privacy.html` | shipped |'));
 ok('FEATURE_MAP privacy locked copy is the live page', /locked copy.*is live/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
 ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
@@ -789,7 +945,7 @@ ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(feature
 
 const agents = read('AGENTS.md');
 ok('AGENTS.md points Cloud Agents at FEATURE_MAP + npm run verify', /FEATURE_MAP/.test(agents) && /npm run verify/.test(agents) && agents.includes(IMESSAGE_LINE));
-ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents));
+ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents) && /\/login/.test(agents) && /\+12138653024/.test(agents));
 ok('CI runs npm run verify', /npm run verify/.test(read('.github/workflows/ci.yml')));
 
 const liveOrigin = String(process.env.VERIFY_LIVE_ORIGIN || '').trim().replace(/\/+$/, '');
@@ -811,11 +967,12 @@ if (!liveOrigin) {
 
 const secret = process.env.STRIPE_SECRET_KEY || '';
 if (!secret) {
-  console.log('ok  live Stripe TEST skipped (STRIPE_SECRET_KEY unset; mock path is the verifier)');
+  console.log('ok  live Stripe Checkout skipped (STRIPE_SECRET_KEY unset; mock path is the verifier)');
 } else if (secret.startsWith('sk_live_')) {
-  ok('env Stripe key is TEST-only', false, 'sk_live_ is not allowed');
+  ok('env Stripe key may be live', true);
+  console.log('ok  live Stripe Checkout skipped (sk_live_ in env; verifier will not create a live session)');
 } else if (!secret.startsWith('sk_test_')) {
-  ok('env Stripe key is TEST-only', false, 'expected sk_test_ prefix');
+  ok('env Stripe key is sk_test_ or sk_live_', false, 'expected sk_test_ or sk_live_ prefix');
 } else {
   try {
     const live = await createCheckoutSession(
@@ -832,9 +989,9 @@ if (!secret) {
         phone: '+14155552671',
       },
     );
-    ok('live Stripe TEST created a Checkout Session', String(live.id).startsWith('cs_test_') && Boolean(live.url));
+    ok('optional Stripe TEST created a Checkout Session', String(live.id).startsWith('cs_test_') && Boolean(live.url));
   } catch (error) {
-    ok('live Stripe TEST created a Checkout Session', false, error.message);
+    ok('optional Stripe TEST created a Checkout Session', false, error.message);
   }
 }
 

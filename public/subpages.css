@@ -70,4 +70,11 @@
 .dash-list p{margin:0;font-size:14px;color:#4d586f;line-height:1.6}
 .obs-meta{display:flex;flex-wrap:wrap;gap:10px 16px;font-size:12px;color:var(--muted);margin:8px 0 0}
 .dash-section details{margin-top:10px;font-size:13px;color:#4d586f}
+.oauth-actions{display:grid;gap:10px;margin:0 0 18px}
+.subpage .oauth-actions .button{width:100%;justify-content:center}
+.auth-divider{text-align:center;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 22px}
+.oauth-config-note,.oauth-signed-in{font-size:13px;line-height:1.6;margin:0 0 16px}
+.oauth-config-note{color:#8a4b12}
+.oauth-signed-in{color:var(--blue)}
+.subpage .page-cta .button{display:inline-flex}
 @media(max-width:620px){.dash-metrics{grid-template-columns:1fr}.dash-section{padding:20px}}
