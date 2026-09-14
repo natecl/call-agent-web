@@ -35,6 +35,11 @@ PUBLIC_TREENA_IMESSAGE_E164=+12138653024
 # AUTH_SESSION_SECRET=
 # AUTH_PUBLIC_ORIGIN=https://usetreena.com
 
+# Optional no-charge dashboard prove grant. Comma-separated emails.
+# Creates a Stripe Customer only — no subscription, no invoice.
+# Unset to reverse. Do not invent pricing.
+# COMPLIMENTARY_ENTITLEMENT_EMAILS=ops@usetreena.com
+
 # Optional. npm run verify GET {origin}/ for live SHA + iMessage subhead.
 # Unset in default CI.
 # VERIFY_LIVE_ORIGIN=https://usetreena.com

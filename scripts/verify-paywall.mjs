@@ -26,6 +26,8 @@ import { assertUserPhone, DEFAULT_TELNYX_FROM_E164 } from '../functions/_lib/pho
 import { shouldRouteToDashboard } from '../functions/_lib/route.js';
 import { DEFAULT_TREENA_IMESSAGE_E164, treenaIMessageView } from '../functions/_lib/imessage.js';
 import { appleClientId, appleMissing, APPLE_SERVICES_ID, googleMissing, handleGoogleCallback, oauthStatus, signPayload, startAppleOAuth, startGoogleOAuth, verifyPayload } from '../functions/_lib/auth.js';
+import { continuePathAfterIdentity, lookupPaidAccount, resolveAccount } from '../functions/_lib/stripe_account.js';
+import { complimentaryEmails, isComplimentaryEmail } from '../functions/_lib/entitlement.js';
 import { onRequest as authOnRequest } from '../functions/api/auth/[[path]].js';
 import { onRequestPost as checkoutPost } from '../functions/api/checkout.js';
 import { onRequestPost as accountPost } from '../functions/api/account.js';
@@ -80,7 +82,7 @@ function customerFromForm(form, id = 'cus_test_123') {
   };
 }
 
-function mockStripe({ customers = [], session, subscription, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0, live = false } = {}) {
+function mockStripe({ customers = [], session, subscription, subscriptions, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0, live = false } = {}) {
   const calls = [];
   let flyAttempts = 0;
   const checkoutId = live ? 'cs_live_abc' : 'cs_test_abc';
@@ -142,6 +144,7 @@ function mockStripe({ customers = [], session, subscription, dashboard, onChecko
       });
     }
     if (url.includes('/v1/subscriptions?') || /\/v1\/subscriptions\?/.test(url)) {
+      if (Array.isArray(subscriptions)) return jsonResponse({ data: subscriptions });
       return jsonResponse({
         data: [subscription || {
           id: 'sub_test_123',
@@ -189,6 +192,8 @@ const liveEnv = {
 };
 
 ok('home keeps iMessage line', read('public/index.html').includes(IMESSAGE_LINE));
+ok('treena theme + dashboard UI files present', existsSync(join(root, 'public/treena-theme.css')) && existsSync(join(root, 'public/dashboard-ui.css')) && existsSync(join(root, 'public/dashboard-ui.js')) && existsSync(join(root, 'public/assets/treena-icon.svg')));
+ok('public pages load treena-theme.css', ['public/index.html', 'public/account.html', 'public/login.html', 'public/pay.html', 'public/start.html', 'public/pricing.html', 'public/privacy.html', 'public/dashboard.html'].every((file) => read(file).includes('treena-theme.css')));
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
@@ -801,7 +806,70 @@ const googleCb = await handleGoogleCallback({
   }
   return new Response(JSON.stringify({ error: 'unexpected' }), { status: 500 });
 });
-ok('google callback sets session and returns to account', googleCb.status === 302 && /\/account\.html/.test(googleCb.headers.get('Location')) && /treena_auth=/.test(String(typeof googleCb.headers.getSetCookie === 'function' ? googleCb.headers.getSetCookie().join(';') : googleCb.headers.get('Set-Cookie'))));
+ok('google callback sets session and returns to pay', googleCb.status === 302 && /\/pay\.html/.test(googleCb.headers.get('Location')) && /plan=personal/.test(googleCb.headers.get('Location')) && /treena_auth=/.test(String(typeof googleCb.headers.getSetCookie === 'function' ? googleCb.headers.getSetCookie().join(';') : googleCb.headers.get('Set-Cookie'))));
+
+ok('OAuth identity skip goes from account details to pay', continuePathAfterIdentity('/account.html?plan=personal', false) === '/pay.html?plan=personal' && continuePathAfterIdentity('/account.html?plan=plus', false) === '/pay.html?plan=plus' && continuePathAfterIdentity('/login', false) === '/pay.html?plan=personal');
+ok('OAuth identity skip sends paid accounts to dashboard', continuePathAfterIdentity('/account.html?plan=personal', true) === '/dashboard');
+ok('auth.js advances signed-in signup off Your details', /location\.replace\(payPath\(\)\)/.test(read('public/auth.js')) && /continuePathAfterIdentity/.test(read('functions/_lib/auth.js')));
+ok('pay collects phone if OAuth skipped account details', /id="pay-phone"/.test(read('public/pay.html')) && /id="pay-details"/.test(read('public/pay.html')) && /id="pay-phone"/.test(read('public/pay/index.html')));
+
+ok('complimentary env parses allowlist', complimentaryEmails({ COMPLIMENTARY_ENTITLEMENT_EMAILS: 'Nate@usetreena.com, ops@usetreena.com' }).includes('nate@usetreena.com') && isComplimentaryEmail({ COMPLIMENTARY_ENTITLEMENT_EMAILS: 'nate@usetreena.com' }, 'Nate@usetreena.com') && !isComplimentaryEmail({}, 'nate@usetreena.com'));
+
+const grantEnv = {
+  ...testEnv,
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+  COMPLIMENTARY_ENTITLEMENT_EMAILS: 'nate@usetreena.com',
+};
+const noSubMock = mockStripe({ customers: [], subscriptions: [] });
+const granted = await lookupPaidAccount(grantEnv, 'nate@usetreena.com', noSubMock.fetchImpl);
+ok('complimentary lookup entitles without a Stripe subscription', granted && granted.hasAccount === true && granted.complimentary === true && granted.plan === 'personal' && !granted.subscriptionId);
+
+const notEntitled = await lookupPaidAccount(testEnv, 'other@usetreena.com', mockStripe({
+  customers: [{ id: 'cus_unpaid', email: 'other@usetreena.com', metadata: { plan: 'personal' } }],
+  subscriptions: [],
+}).fetchImpl);
+ok('non-allowlisted email without subscription is not entitled', !notEntitled || notEntitled.hasAccount === false);
+
+let createdComplimentary = null;
+const createGrantMock = mockStripe({
+  customers: [],
+  subscriptions: [],
+  onCustomer(form, kind) { createdComplimentary = { form, kind }; },
+});
+const ensured = await resolveAccount(grantEnv, { email: 'nate@usetreena.com', name: 'Nathan' }, createGrantMock.fetchImpl);
+ok('complimentary grant creates a Stripe Customer and not a subscription', ensured && ensured.hasAccount === true && ensured.complimentary === true && Boolean(ensured.customerId) && createdComplimentary && createdComplimentary.kind === 'create' && createdComplimentary.form.get('metadata[complimentary]') === 'on' && !createGrantMock.calls.some((call) => String(call.url).includes('/v1/checkout/sessions') || (String(call.url).includes('/v1/subscriptions') && call.method === 'POST')));
+
+const grantGoogle = await startGoogleOAuth({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+  STRIPE_SECRET_KEY: 'sk_test_verifier',
+  COMPLIMENTARY_ENTITLEMENT_EMAILS: 'nate@usetreena.com',
+}, new Request('https://usetreena.com/api/auth/google?next=/account.html?plan=personal'));
+const grantGoogleUrl = new URL(grantGoogle.headers.get('Location'));
+const grantCookies = typeof grantGoogle.headers.getSetCookie === 'function'
+  ? grantGoogle.headers.getSetCookie()
+  : [grantGoogle.headers.get('Set-Cookie')].filter(Boolean);
+const grantCookieHeader = grantCookies.map((item) => String(item).split(';')[0]).join('; ');
+const grantStripe = mockStripe({ customers: [], subscriptions: [] });
+const grantCb = await handleGoogleCallback({
+  GOOGLE_CLIENT_ID: 'treena.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  AUTH_SESSION_SECRET: 'auth-session-secret',
+  STRIPE_SECRET_KEY: 'sk_test_verifier',
+  COMPLIMENTARY_ENTITLEMENT_EMAILS: 'nate@usetreena.com',
+}, new Request(`https://usetreena.com/api/auth/google/callback?code=abc&state=${encodeURIComponent(grantGoogleUrl.searchParams.get('state'))}`, {
+  headers: { Cookie: grantCookieHeader },
+}), async (url, init) => {
+  if (String(url).includes('oauth2.googleapis.com/token')) {
+    return new Response(JSON.stringify({ access_token: 'atok' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  if (String(url).includes('openidconnect.googleapis.com')) {
+    return new Response(JSON.stringify({ email: 'nate@usetreena.com', sub: 'gid-1', name: 'Nathan' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  return grantStripe.fetchImpl(url, init);
+});
+ok('complimentary Google OAuth lands on dashboard without checkout', grantCb.status === 302 && /\/dashboard/.test(grantCb.headers.get('Location')));
 
 const routed = await authOnRequest({
   request: new Request('https://usetreena.com/api/auth/me'),
@@ -820,6 +888,7 @@ ok('dashboard has usage billing threads observability settings', /id="usage"/.te
 ok('dashboard billing TEST badge is env-gated', /class="test-badge"/.test(dashboardHtml) && /data-stripe-test-only/.test(dashboardHtml) && /No real charge/.test(dashboardHtml) && /Billed on Stripe/.test(dashboardHtml));
 ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
 ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboardHtml) && /id="manage-billing"/.test(dashboardHtml) && /id="cancel-plan"/.test(dashboardHtml) && /Stripe Customer Portal/.test(dashboardHtml));
+ok('dashboard complimentary grant copy', /Complimentary access\. No Stripe charge/.test(dashboardHtml) && /data-complimentary-only/.test(dashboardHtml));
 ok('dashboard settings phone is the user number', /id="settings-phone"/.test(dashboardHtml) && /Not Treena’s shared bot number/.test(dashboardHtml) && /id="settings-retain"/.test(dashboardHtml) && !/id="settings-retain"[^>]*checked/.test(dashboardHtml));
 ok('dashboard has no raw card fields', !/card number|last4|expir/i.test(dashboardHtml));
 ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
@@ -1097,6 +1166,39 @@ try {
   globalThis.fetch = previousFetchPortal;
 }
 
+const grantDashTok = await signPayload(authSecret, {
+  email: 'nate@usetreena.com',
+  hasAccount: false,
+  complimentary: true,
+  csrf,
+  exp: Math.floor(Date.now() / 1000) + 120,
+});
+const grantDashCookie = `treena_auth=${encodeURIComponent(grantDashTok)}`;
+const previousFetchGrant = globalThis.fetch;
+const grantDashMock = mockStripe({ customers: [], subscriptions: [] });
+globalThis.fetch = grantDashMock.fetchImpl;
+try {
+  const grantDashRes = await dashboardGet({
+    request: new Request('https://usetreena.com/api/dashboard', { headers: { Cookie: grantDashCookie } }),
+    env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
+  });
+  const grantDashBody = await grantDashRes.json();
+  ok('complimentary dashboard loads without a paid subscription', grantDashRes.status === 200 && grantDashBody.ok === true && grantDashBody.billing.complimentary === true && grantDashBody.billing.status === 'complimentary' && grantDashBody.billing.periodEnd == null && grantDashBody.billing.noRealCharge === true && grantDashBody.billing.plan === 'personal');
+
+  const grantPortalRes = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: grantDashCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({}),
+    }),
+    env: { ...grantEnv, AUTH_SESSION_SECRET: authSecret },
+  });
+  const grantPortalBody = await grantPortalRes.json();
+  ok('complimentary Manage billing opens Stripe Customer Portal', grantPortalRes.status === 200 && String(grantPortalBody.url).startsWith('https://billing.stripe.com/'));
+} finally {
+  globalThis.fetch = previousFetchGrant;
+}
+
 ok('logged-in account holders leave / for dashboard', shouldRouteToDashboard({ hasAccount: true }, '/') === true && shouldRouteToDashboard({ hasAccount: true }, '/login') === true);
 ok('logged-out visitors keep the landing', shouldRouteToDashboard({ hasAccount: false }, '/') === false && shouldRouteToDashboard(null, '/') === false);
 ok('pricing is not redirected for account holders', shouldRouteToDashboard({ hasAccount: true }, '/pricing') === false);
@@ -1134,8 +1236,11 @@ ok('privacy chrome still Text Treena', /Text Treena/.test(privacy) && /class="[^
 ok('privacy directory index points How it works at home', /href="\.\.\/index\.html#how-it-works"/.test(read('public/privacy/index.html')));
 
 const featureMap = read('docs/FEATURE_MAP.md');
+const workingHome = readFileSync(join(root, 'public/index.html'));
+const workingHomeSha = createHash('sha256').update(workingHome).digest('hex');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
 ok('FEATURE_MAP live home SHA is 8868-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8868/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
+ok('FEATURE_MAP working-tree home SHA matches public/index.html', featureMap.includes(workingHomeSha) && featureMap.includes(String(workingHome.length)));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
@@ -1157,6 +1262,8 @@ ok('FEATURE_MAP marks dashboard sot-ready on Pages', featureMap.includes('| `/da
 ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
 ok('FEATURE_MAP records billing period / portal / cancel / settings', featureMap.includes('| dashboard-billing-period |') && featureMap.includes('| dashboard-billing-portal |') && featureMap.includes('| dashboard-cancel-plan |') && featureMap.includes('| dashboard-account-settings |') && featureMap.includes('| dashboard-retain-persist |') && featureMap.includes('| logged-in-home-route |'));
+ok('FEATURE_MAP OAuth advances past details to Review & pay', /advances to Review & pay/.test(featureMap) && /continuePathAfterIdentity/.test(featureMap));
+ok('FEATURE_MAP complimentary grant is env-gated', featureMap.includes('| dashboard-complimentary-grant |') && /COMPLIMENTARY_ENTITLEMENT_EMAILS/.test(featureMap) && /no Stripe charge/.test(featureMap) && /no subscription/.test(featureMap));
 ok('FEATURE_MAP logged-in accounts leave the landing', /routed to `\/dashboard`/.test(featureMap) && /not the landing/.test(featureMap));
 ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(featureMap) && !/`minutes_used` is 0/.test(featureMap));
 
