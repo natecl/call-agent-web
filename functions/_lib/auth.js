@@ -1,4 +1,5 @@
-import { lookupPaidAccount, dashboardPathIfAccount } from './stripe_account.js';
+import { continuePathAfterIdentity, resolveAccount } from './stripe_account.js';
+import { isComplimentaryEmail } from './entitlement.js';
 
 const AUTH_COOKIE = 'treena_auth';
 const STATE_COOKIE = 'treena_oauth_state';
@@ -182,7 +183,7 @@ export async function readSession(env, request) {
   }
 }
 
-function sessionPayload({ email, provider, sub, name, customerId, phone, hasAccount, csrf }) {
+function sessionPayload({ email, provider, sub, name, customerId, phone, hasAccount, complimentary, csrf }) {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: String(email || '').trim().toLowerCase(),
@@ -192,6 +193,7 @@ function sessionPayload({ email, provider, sub, name, customerId, phone, hasAcco
     customerId: customerId || null,
     phone: phone || null,
     hasAccount: Boolean(hasAccount),
+    complimentary: Boolean(complimentary),
     csrf: csrf || crypto.randomUUID(),
     iat: now,
     exp: now + SESSION_MAX_AGE,
@@ -313,12 +315,18 @@ export async function issueAccountSession(env, request, {
   const origin = publicOrigin(request, env);
   const existing = request ? await readSession(env, request) : null;
   let accountHas = Boolean(hasAccount);
+  let complimentary = Boolean(existing && existing.complimentary) || isComplimentaryEmail(env, email);
   let resolvedCustomer = customerId || (existing && existing.customerId) || null;
   let resolvedPhone = phone || (existing && existing.phone) || null;
   let resolvedName = name || (existing && existing.name) || null;
-  if (hasAccount == null) {
-    const account = await lookupPaidAccount(env, email, fetchImpl);
-    accountHas = Boolean(account && account.hasAccount);
+  if (hasAccount == null || (complimentary && !resolvedCustomer)) {
+    const account = await resolveAccount(env, {
+      email,
+      name: resolvedName,
+      phone: resolvedPhone,
+    }, fetchImpl);
+    accountHas = Boolean(account && account.hasAccount) || accountHas;
+    complimentary = Boolean(account && account.complimentary) || complimentary;
     if (account) {
       resolvedCustomer = account.customerId || resolvedCustomer;
       resolvedPhone = account.phone || resolvedPhone;
@@ -333,6 +341,7 @@ export async function issueAccountSession(env, request, {
     customerId: resolvedCustomer,
     phone: resolvedPhone,
     hasAccount: accountHas,
+    complimentary,
     csrf: (existing && existing.csrf) || crypto.randomUUID(),
   });
   const token = await signPayload(secret, payload);
@@ -342,9 +351,9 @@ export async function issueAccountSession(env, request, {
 async function finishSession(env, request, { email, provider, sub, name, next, fetchImpl }) {
   const origin = publicOrigin(request, env);
   if (!email) throw fail('That sign-in did not return an email', 400);
-  const account = await lookupPaidAccount(env, email, fetchImpl);
+  const account = await resolveAccount(env, { email, name }, fetchImpl);
   const hasAccount = Boolean(account && account.hasAccount);
-  const path = dashboardPathIfAccount(safeNextPath(next), hasAccount);
+  const path = continuePathAfterIdentity(safeNextPath(next), hasAccount);
   const issued = await issueAccountSession(env, request, {
     email,
     provider,
@@ -578,13 +587,15 @@ export async function sessionView(env, request, fetchImpl) {
     return { ok: true, signedIn: false, hasAccount: false, csrf: null, oauth: oauthStatus(env) };
   }
   let hasAccount = Boolean(session.hasAccount);
+  let complimentary = Boolean(session.complimentary) || isComplimentaryEmail(env, session.email);
   let customerId = session.customerId || null;
   let phone = session.phone || null;
   let name = session.name || null;
-  if (!hasAccount && env.STRIPE_SECRET_KEY) {
-    const account = await lookupPaidAccount(env, session.email, fetchImpl);
+  if (!hasAccount || (complimentary && !customerId)) {
+    const account = await resolveAccount(env, { email: session.email, name, phone }, fetchImpl);
     if (account && account.hasAccount) {
       hasAccount = true;
+      complimentary = Boolean(account.complimentary) || complimentary;
       customerId = account.customerId || customerId;
       phone = account.phone || phone;
       name = account.name || name;
@@ -594,6 +605,7 @@ export async function sessionView(env, request, fetchImpl) {
     ok: true,
     signedIn: true,
     hasAccount,
+    complimentary,
     email: session.email,
     provider: session.provider,
     name,

@@ -48,7 +48,18 @@ export async function billingView(env, sessionView, fetchImpl) {
     }
   }
   if (subscription && subscription.status) status = subscription.status;
-  const period = periodFromSubscription(subscription);
+  const paidSub = Boolean(
+    subscription
+    && subscription.id
+    && subscription.status
+    && subscription.status !== 'incomplete_expired'
+    && subscription.status !== 'canceled',
+  );
+  const complimentary = Boolean(sessionView.complimentary) && !paidSub;
+  if (complimentary) status = 'complimentary';
+  const period = complimentary && !paidSub
+    ? periodFromSubscription(null)
+    : periodFromSubscription(subscription);
   const mode = stripeModeFromEnv(env) || 'test';
   const live = mode === 'live';
   return {
@@ -56,7 +67,8 @@ export async function billingView(env, sessionView, fetchImpl) {
     test: !live,
     live,
     badge: live ? null : 'TEST',
-    noRealCharge: !live,
+    noRealCharge: !live || complimentary,
+    complimentary,
     plan: plan.id,
     planName: plan.name,
     amountCents: plan.amountCents,
@@ -103,7 +115,10 @@ export async function loadDashboard(env, sessionIdOrOpts, fetchImpl) {
   const name = String((session.name || (fly.user && fly.user.prefs && fly.user.prefs.full_name) || '')).trim();
   const firstName = session.firstName || firstNameFrom(name) || firstNameFrom(flyName) || null;
   const needsName = !firstName;
-  const billing = await billingView(env, session, fetchImpl);
+  const billing = await billingView(env, {
+    ...session,
+    complimentary: Boolean(session.complimentary),
+  }, fetchImpl);
   const threads = fly.threads || [];
   const calls = fly.calls || [];
   const settings = settingsFrom(session, fly.user);

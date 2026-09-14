@@ -1,6 +1,6 @@
 import { verifyCheckoutSession } from './checkout.js';
 import { readSession } from './auth.js';
-import { lookupPaidAccount } from './stripe_account.js';
+import { resolveAccount } from './stripe_account.js';
 
 export { assertUserPhone, reservedAccountPhones, DEFAULT_TELNYX_FROM_E164 } from './phone.js';
 export { marketingEntryPath, loginEntryPath, shouldRouteToDashboard } from './route.js';
@@ -39,10 +39,10 @@ export function assertCsrf(request, session, body) {
   }
 }
 
-export async function viewFromCheckoutOrEmail(env, { sessionId, email }, fetchImpl) {
+export async function viewFromCheckoutOrEmail(env, { sessionId, email, name, phone }, fetchImpl) {
   if (sessionId) return verifyCheckoutSession(env, sessionId, fetchImpl);
   if (!email) return null;
-  const account = await lookupPaidAccount(env, email, fetchImpl);
+  const account = await resolveAccount(env, { email, name, phone }, fetchImpl);
   if (!account || !account.hasAccount) return null;
   return account;
 }
@@ -71,7 +71,11 @@ export async function requireAccountOwner(env, request, body = {}, fetchImpl) {
       throw fail('This checkout session belongs to a different account', 403);
     }
     if (!view) {
-      view = await viewFromCheckoutOrEmail(env, { email: auth.email }, fetchImpl);
+      view = await viewFromCheckoutOrEmail(env, {
+        email: auth.email,
+        name: auth.name,
+        phone: auth.phone,
+      }, fetchImpl);
     }
     if (!view) {
       throw fail('No Treena account for this sign-in', 404);

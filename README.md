@@ -10,7 +10,7 @@ TRE-22 unfroze home. Pixel owns restyle. Keep “Your phone call agent, right in
 
 ## Stripe paywall
 
-Flow: landing (TRE-22 unfrozen) → `/pricing` → `/account` (email + password + E.164 **user** phone + account-level retain opt-in, default off; **no name field**; Google + Apple buttons; copy: name lives in account settings after signup) → `/pay` Stripe Checkout (**live** when Pages has `sk_live_`; TEST copy only on `sk_test_`) → `/start` (collect name if missing; same settings copy) → `/dashboard` (HTML may already be on Pages; **sot-ready**, Cap has not GO’d product-live). `/login` is a real page (Google + Apple + email). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only. Privacy page is shipped on web. Hangup wipe is TRE-23 on `natecl/call-agent`, not this repo.
+Flow: landing (TRE-22 unfrozen) → `/pricing` → `/account` (email + password + E.164 **user** phone + account-level retain opt-in, default off; **no name field**; Google + Apple buttons; copy: name lives in account settings after signup; **Google/Apple identity skips Your details and continues at Review & pay**) → `/pay` Stripe Checkout (**live** when Pages has `sk_live_`; TEST copy only on `sk_test_`) → `/start` (collect name if missing; same settings copy) → `/dashboard` (HTML may already be on Pages; **sot-ready**, Cap has not GO’d product-live). `/login` is a real page (Google + Apple + email). No trial. Plans are Personal $20/mo (30 min) and Plus $40/mo (90 min) only. Privacy page is shipped on web. Hangup wipe is TRE-23 on `natecl/call-agent`, not this repo. Complimentary prove grant: Pages env `COMPLIMENTARY_ENTITLEMENT_EMAILS` (comma-separated) entitles those emails to `/dashboard` + Manage billing **without a Stripe charge** (Customer only; no subscription). Unset to reverse.
 
 Everyone texts one shared Treena iMessage bot (`+12138653024`). The account `phone` field is the user’s own number. This website does not assign a per-user Treena DID.
 
@@ -53,6 +53,7 @@ Set Production and Preview env (Workers & Pages → `call-agent` → Settings �
 | `APPLE_PRIVATE_KEY` | secret | no (`.p8` PEM; `\n` escaped is OK) |
 | `AUTH_SESSION_SECRET` | secret | no (signed auth cookie + OAuth state; required for Google/Apple to complete) |
 | `AUTH_PUBLIC_ORIGIN` | env | no (defaults to the request origin; set `https://usetreena.com` if callbacks must stay on prod) |
+| `COMPLIMENTARY_ENTITLEMENT_EMAILS` | env | no (comma-separated). Allowlisted emails get `/dashboard` + Manage billing with **no Stripe charge** (Customer created; no subscription). Reversible: unset. Do not invent pricing. |
 
 ### Google / Apple (ops)
 

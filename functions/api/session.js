@@ -1,7 +1,7 @@
 import { verifyCheckoutSession } from '../_lib/checkout.js';
 import { errorResponse, json } from '../_lib/http.js';
 import { issueAccountSession, readSession } from '../_lib/auth.js';
-import { lookupPaidAccount } from '../_lib/stripe_account.js';
+import { resolveAccount } from '../_lib/stripe_account.js';
 
 export async function onRequestGet(context) {
   try {
@@ -24,7 +24,11 @@ export async function onRequestGet(context) {
       err.status = 401;
       throw err;
     }
-    const account = await lookupPaidAccount(context.env, auth.email);
+    const account = await resolveAccount(context.env, {
+      email: auth.email,
+      name: auth.name,
+      phone: auth.phone,
+    });
     if (!account || !account.hasAccount) {
       const err = new Error('No Treena account for this sign-in');
       err.status = 404;
