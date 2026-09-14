@@ -41,8 +41,8 @@ import { onRequestPost as billingCancelPost } from '../functions/api/billing/can
 import { onRequest as homeMiddleware } from '../functions/_middleware.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LIVE_HOME_SHA = '8b21a11d923c13de806c6cfaa055f16e345e409e53ffbdb754c3f743f4762e78';
-const LIVE_HOME_BYTES = 8868;
+const LIVE_HOME_SHA = '4e79584f9ee5b0c4dad27808b56a9f8ec3b5d860cd9c8018b1ea9089363fe316';
+const LIVE_HOME_BYTES = 9395;
 const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
 const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
@@ -1393,9 +1393,10 @@ const featureMap = read('docs/FEATURE_MAP.md');
 const workingHome = readFileSync(join(root, 'public/index.html'));
 const workingHomeSha = createHash('sha256').update(workingHome).digest('hex');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
-ok('FEATURE_MAP live home SHA is 8868-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8868/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
+ok('FEATURE_MAP live home SHA is 9395-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /9395/.test(featureMap) && !/8868/.test(featureMap) && !/8b21a11d/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
 ok('FEATURE_MAP working-tree home SHA matches public/index.html', featureMap.includes(workingHomeSha) && featureMap.includes(String(workingHome.length)));
 ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
+ok('FEATURE_MAP wave2 surfaces #17-#24', ['#17', '#18', '#19', '#20', '#21', '#22', '#23', '#24'].every((id) => featureMap.includes(`| ${id} |`)) && /skip as merge vehicle/.test(featureMap) && /Not dashboard product-live/.test(featureMap));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
 ok('FEATURE_MAP Stripe live Cap GO', /Cap GO/.test(featureMap) && /sk_live_/.test(featureMap) && /env-driven/.test(featureMap) && !/live Stripe flip is HOLD/.test(featureMap));

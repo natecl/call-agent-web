@@ -6,17 +6,17 @@ Demo playback refinement: the message thread initializes empty and resets to tim
 Homepage CTA refinement: all Text Treena actions use sage fills and dark labels consistently across home and subpages, per the latest visual review. Watch a call has a dark pill surface and visible border. Destinations and click behavior are unchanged.
 
 
-## Shared motion refinement — sot-ready, not deployed
+## Shared motion refinement — shipped on live `/` (measured)
 
 Cap lock 2026-09-14: header keeps Log in; marketing Text Treena stays `sms:+12138653024` (not `/account?plan=personal`). Visual restyle only. Equalized pricing card padding and 52px plan buttons. Shared motion adds eased hover/press, animated field focus, scroll reveals across every page, and newly visible form-panel entrances. Same-origin page transitions use native View Transitions with arrival-animation fallback. Reduced-motion preferences disable movement. No navigation interception or submission delays. The use-case carousel now holds each result for 3.2 seconds and transitions whole cards/captions together; the legacy word animation and moving underline are removed.
 
 
-## September 14 visual refinement — sot-ready, not deployed
+## September 14 visual refinement — shipped on live `/` (measured)
 
 Removed the visible “Illustrative demo” label and connecting cord. Replaced the old use-case illustrations with warm-white and sage outcome cards. Marketing “Text Treena” stays `sms:+12138653024`. Auth, billing and call behavior are unchanged. This supersedes historical artwork descriptions below; it does not change CTA destinations.
 
 
-Status: sot-ready. UI-only rebrand in the working tree; no deployment.
+Status: live `/` SHA matches git (9395 B). UI-only rebrand. Dashboard product-live stays sot-ready. This agent must not deploy Pages.
 
 ## Direction
 
