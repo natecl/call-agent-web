@@ -110,6 +110,12 @@ async function hmacBytes(secret, data) {
   return crypto.subtle.sign('HMAC', key, typeof data === 'string' ? utf8(data) : data);
 }
 
+/** Stable first CSRF so parallel GET /api/auth/me and /api/dashboard cannot mint two tokens. */
+async function csrfForSession(secret, email, existing) {
+  if (existing && existing.csrf) return existing.csrf;
+  return b64urlEncode(await hmacBytes(secret, `csrf:v1:${String(email || '').trim().toLowerCase()}`));
+}
+
 export async function signPayload(secret, payload) {
   const body = b64urlEncode(utf8(JSON.stringify(payload)));
   const mac = b64urlEncode(await hmacBytes(secret, body));
@@ -194,7 +200,7 @@ function sessionPayload({ email, provider, sub, name, customerId, phone, hasAcco
     phone: phone || null,
     hasAccount: Boolean(hasAccount),
     complimentary: Boolean(complimentary),
-    csrf: csrf || crypto.randomUUID(),
+    csrf: csrf || null,
     iat: now,
     exp: now + SESSION_MAX_AGE,
   };
@@ -342,7 +348,7 @@ export async function issueAccountSession(env, request, {
     phone: resolvedPhone,
     hasAccount: accountHas,
     complimentary,
-    csrf: (existing && existing.csrf) || crypto.randomUUID(),
+    csrf: await csrfForSession(secret, email, existing),
   });
   const token = await signPayload(secret, payload);
   return { cookies: sessionCookies(origin, env, token, ''), csrf: payload.csrf, hasAccount: payload.hasAccount, payload };

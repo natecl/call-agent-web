@@ -1172,6 +1172,75 @@ try {
   });
   const portalBody = await portalRes.json();
   ok('POST /api/billing/portal returns Stripe portal URL', portalRes.status === 200 && String(portalBody.url).startsWith('https://billing.stripe.com/'));
+
+  const dashLoad = await dashboardGet({
+    request: new Request('https://usetreena.com/api/dashboard', { headers: { Cookie: authCookie } }),
+    env: authEnv,
+  });
+  const dashLoadBody = await dashLoad.json();
+  const dashSetCookie = typeof dashLoad.headers.getSetCookie === 'function'
+    ? dashLoad.headers.getSetCookie().join('; ')
+    : (dashLoad.headers.get('Set-Cookie') || '');
+  const dashAuth = (String(dashSetCookie).match(/treena_auth=[^;]+/) || [])[0] || authCookie;
+  ok('GET /api/dashboard returns CSRF after load', dashLoad.status === 200 && dashLoadBody.csrf === csrf);
+
+  const portalAfterLoad = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: dashAuth, 'X-Treena-CSRF': dashLoadBody.csrf },
+      body: JSON.stringify({ csrf: dashLoadBody.csrf }),
+    }),
+    env: authEnv,
+  });
+  const portalAfterLoadBody = await portalAfterLoad.json();
+  ok('Manage billing portal POST works after dashboard load', portalAfterLoad.status === 200 && String(portalAfterLoadBody.url).startsWith('https://billing.stripe.com/'));
+
+  const portalBodyOnly = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: authCookie },
+      body: JSON.stringify({ csrf }),
+    }),
+    env: authEnv,
+  });
+  const portalBodyOnlyJson = await portalBodyOnly.json();
+  ok('portal POST accepts CSRF in JSON body', portalBodyOnly.status === 200 && String(portalBodyOnlyJson.url).startsWith('https://billing.stripe.com/'));
+
+  const noCsrfTok = await signPayload(authSecret, {
+    email: 'tester@example.com',
+    hasAccount: true,
+    customerId: 'cus_test_123',
+    phone: TEST_PHONE,
+    exp: Math.floor(Date.now() / 1000) + 120,
+  });
+  const noCsrfCookie = `treena_auth=${encodeURIComponent(noCsrfTok)}`;
+  const meMint = await authOnRequest({
+    request: new Request('https://usetreena.com/api/auth/me', { headers: { Cookie: noCsrfCookie } }),
+    env: authEnv,
+    params: { path: ['me'] },
+  });
+  const dashMint = await dashboardGet({
+    request: new Request('https://usetreena.com/api/dashboard', { headers: { Cookie: noCsrfCookie } }),
+    env: authEnv,
+  });
+  const meMintBody = await meMint.json();
+  const dashMintBody = await dashMint.json();
+  const meSetCookie = typeof meMint.headers.getSetCookie === 'function'
+    ? meMint.headers.getSetCookie().join('; ')
+    : (meMint.headers.get('Set-Cookie') || '');
+  const meAuth = (String(meSetCookie).match(/treena_auth=[^;]+/) || [])[0];
+  ok('auth/me and dashboard mint the same CSRF', Boolean(meMintBody.csrf) && meMintBody.csrf === dashMintBody.csrf);
+
+  const portalLateCookie = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: meAuth, 'X-Treena-CSRF': dashMintBody.csrf },
+      body: JSON.stringify({ csrf: dashMintBody.csrf }),
+    }),
+    env: authEnv,
+  });
+  const portalLateCookieBody = await portalLateCookie.json();
+  ok('late /api/auth/me cookie still opens portal', portalLateCookie.status === 200 && String(portalLateCookieBody.url).startsWith('https://billing.stripe.com/'));
 } finally {
   globalThis.fetch = previousFetchPortal;
 }
@@ -1241,6 +1310,7 @@ ok('middleware leaves logged-out / alone', mwNext.status === 200);
 ok('Pages Functions: billing portal + cancel', existsSync(join(root, 'functions/api/billing/portal.js')) && existsSync(join(root, 'functions/api/billing/cancel.js')));
 ok('home app.js routes signed-in accounts off the landing', /hasAccount/.test(read('public/app.js')) && /\/dashboard/.test(read('public/app.js')));
 ok('start name save sends sessionId', /sessionId/.test(read('public/checkout.js')) && /\/api\/billing\/portal/.test(read('public/checkout.js')) && /\/api\/billing\/cancel/.test(read('public/checkout.js')));
+ok('checkout JS sends portal CSRF header and JSON body', /X-Treena-CSRF/.test(read('public/checkout.js')) && /parsed.csrf = token/.test(read('public/checkout.js')) && /rememberCsrf\(me.csrf\)/.test(read('public/checkout.js')));
 
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
