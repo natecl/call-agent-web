@@ -121,19 +121,45 @@
     return compact;
   }
 
+  function rememberCsrf(token) {
+    if (!token) return;
+    csrfToken = token;
+    try { sessionStorage.setItem(KEY.csrf, token); } catch (_) {}
+  }
+
+  function currentCsrf() {
+    if (csrfToken) return csrfToken;
+    try { csrfToken = sessionStorage.getItem(KEY.csrf) || ''; } catch (_) {}
+    return csrfToken;
+  }
+
+  function withCsrfBody(headers, body, token) {
+    if (!token || !body || typeof body !== 'string') return body;
+    const type = String(headers['content-type'] || headers['Content-Type'] || '');
+    if (!type.includes('application/json')) return body;
+    try {
+      const parsed = JSON.parse(body);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.csrf) return body;
+      parsed.csrf = token;
+      return JSON.stringify(parsed);
+    } catch (_) {
+      return body;
+    }
+  }
+
   async function api(path, options) {
     const headers = Object.assign({}, (options && options.headers) || {});
     const method = String((options && options.method) || 'GET').toUpperCase();
-    if (csrfToken && method !== 'GET' && method !== 'HEAD') {
-      headers['X-Treena-CSRF'] = csrfToken;
+    const token = currentCsrf();
+    let body = options && options.body;
+    if (token && method !== 'GET' && method !== 'HEAD') {
+      headers['X-Treena-CSRF'] = token;
+      body = withCsrfBody(headers, body, token);
     }
-    const res = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}, { headers }));
+    const res = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}, { headers, body }));
     let data = {};
     try { data = await res.json(); } catch (_) {}
-    if (data && data.csrf) {
-      csrfToken = data.csrf;
-      try { sessionStorage.setItem(KEY.csrf, data.csrf); } catch (_) {}
-    }
+    if (data && data.csrf) rememberCsrf(data.csrf);
     if (!res.ok) {
       const err = new Error(data.error || 'Request failed');
       err.status = res.status;
@@ -142,11 +168,6 @@
     return data;
   }
 
-  function rememberCsrf(token) {
-    if (!token) return;
-    csrfToken = token;
-    try { sessionStorage.setItem(KEY.csrf, token); } catch (_) {}
-  }
   try { csrfToken = sessionStorage.getItem(KEY.csrf) || ''; } catch (_) {}
 
   function formatIsoDate(value) {
@@ -220,6 +241,7 @@
 
   function applyOAuthSession(me) {
     if (!me || !me.signedIn) return;
+    rememberCsrf(me.csrf);
     const emailInput = document.getElementById('email');
     if (emailInput && me.email) emailInput.value = me.email;
     const passwordInput = document.getElementById('password');

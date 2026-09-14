@@ -31,7 +31,7 @@ export async function onRequestPost(context) {
       customerId: owner.customerId,
       origin,
     });
-    return json(result);
+    return json({ ...result, csrf: owner.csrf });
   } catch (error) {
     return errorResponse(error);
   }
