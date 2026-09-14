@@ -1,5 +1,6 @@
 import { continuePathAfterIdentity, resolveAccount } from './stripe_account.js';
 import { isComplimentaryEmail } from './entitlement.js';
+import { looksLikeCheckoutSessionId } from './stripe.js';
 
 const AUTH_COOKIE = 'treena_auth';
 const STATE_COOKIE = 'treena_oauth_state';
@@ -189,7 +190,7 @@ export async function readSession(env, request) {
   }
 }
 
-function sessionPayload({ email, provider, sub, name, customerId, phone, hasAccount, complimentary, csrf }) {
+function sessionPayload({ email, provider, sub, name, customerId, phone, hasAccount, complimentary, checkoutSessionId, csrf }) {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: String(email || '').trim().toLowerCase(),
@@ -200,6 +201,7 @@ function sessionPayload({ email, provider, sub, name, customerId, phone, hasAcco
     phone: phone || null,
     hasAccount: Boolean(hasAccount),
     complimentary: Boolean(complimentary),
+    checkoutSessionId: looksLikeCheckoutSessionId(checkoutSessionId) || null,
     csrf: csrf || null,
     iat: now,
     exp: now + SESSION_MAX_AGE,
@@ -314,6 +316,7 @@ export async function issueAccountSession(env, request, {
   customerId,
   phone,
   hasAccount,
+  checkoutSessionId,
   fetchImpl,
 } = {}) {
   const secret = textOf(env, 'AUTH_SESSION_SECRET');
@@ -325,6 +328,9 @@ export async function issueAccountSession(env, request, {
   let resolvedCustomer = customerId || (existing && existing.customerId) || null;
   let resolvedPhone = phone || (existing && existing.phone) || null;
   let resolvedName = name || (existing && existing.name) || null;
+  const resolvedCheckout = looksLikeCheckoutSessionId(checkoutSessionId)
+    || looksLikeCheckoutSessionId(existing && existing.checkoutSessionId)
+    || null;
   if (hasAccount == null || (complimentary && !resolvedCustomer)) {
     const account = await resolveAccount(env, {
       email,
@@ -348,6 +354,7 @@ export async function issueAccountSession(env, request, {
     phone: resolvedPhone,
     hasAccount: accountHas,
     complimentary,
+    checkoutSessionId: resolvedCheckout,
     csrf: await csrfForSession(secret, email, existing),
   });
   const token = await signPayload(secret, payload);

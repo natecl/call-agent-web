@@ -2,8 +2,8 @@ const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 (function routeSignedInAccount() {
   try {
-    const sid = sessionStorage.getItem('treena-session-id');
-    if (sid) {
+    const sid = String(sessionStorage.getItem('treena-session-id') || localStorage.getItem('treena-session-id') || '').trim();
+    if (/^cs_(test|live)_/.test(sid)) {
       location.replace(`/dashboard.html?session_id=${encodeURIComponent(sid)}`);
       return;
     }

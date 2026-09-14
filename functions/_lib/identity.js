@@ -1,6 +1,7 @@
 import { verifyCheckoutSession } from './checkout.js';
 import { readSession } from './auth.js';
 import { resolveAccount } from './stripe_account.js';
+import { looksLikeCheckoutSessionId, stripeModeFromEnv } from './stripe.js';
 
 export { assertUserPhone, reservedAccountPhones, DEFAULT_TELNYX_FROM_E164 } from './phone.js';
 export { marketingEntryPath, loginEntryPath, shouldRouteToDashboard } from './route.js';
@@ -39,12 +40,48 @@ export function assertCsrf(request, session, body) {
   }
 }
 
+export function requestedCheckoutSessionId(request, body = {}, auth, mode) {
+  const candidates = [
+    body && (body.sessionId || body.session_id),
+    request && new URL(request.url).searchParams.get('session_id'),
+    auth && (auth.checkoutSessionId || auth.sessionId),
+  ];
+  for (const value of candidates) {
+    const id = looksLikeCheckoutSessionId(value, mode);
+    if (id) return id;
+  }
+  return '';
+}
+
+function attachCheckoutSessionId(view, sessionId) {
+  if (!view) return view;
+  const id = looksLikeCheckoutSessionId(sessionId) || looksLikeCheckoutSessionId(view.sessionId);
+  if (!id || view.sessionId === id) return view;
+  return { ...view, sessionId: id };
+}
+
+async function viewFromPaidCheckout(env, sessionId, fetchImpl) {
+  if (!sessionId) return null;
+  try {
+    return await verifyCheckoutSession(env, sessionId, fetchImpl);
+  } catch (error) {
+    const status = error && error.status;
+    if (status === 400 || status === 402 || status === 404 || status === 502) return null;
+    throw error;
+  }
+}
+
 export async function viewFromCheckoutOrEmail(env, { sessionId, email, name, phone }, fetchImpl) {
-  if (sessionId) return verifyCheckoutSession(env, sessionId, fetchImpl);
+  const mode = stripeModeFromEnv(env);
+  const checkoutId = looksLikeCheckoutSessionId(sessionId, mode);
+  if (checkoutId) {
+    const paid = await viewFromPaidCheckout(env, checkoutId, fetchImpl);
+    if (paid) return paid;
+  }
   if (!email) return null;
   const account = await resolveAccount(env, { email, name, phone }, fetchImpl);
   if (!account || !account.hasAccount) return null;
-  return account;
+  return attachCheckoutSessionId(account, checkoutId);
 }
 
 function mutating(request) {
@@ -53,19 +90,13 @@ function mutating(request) {
 }
 
 export async function requireAccountOwner(env, request, body = {}, fetchImpl) {
-  const sessionId = String(
-    (body && (body.sessionId || body.session_id))
-    || (request && new URL(request.url).searchParams.get('session_id'))
-    || '',
-  ).trim();
   const auth = request ? await readSession(env, request) : null;
   if (mutating(request) && auth && auth.csrf) {
     assertCsrf(request, auth, body);
   }
-  let view = null;
-  if (sessionId) {
-    view = await verifyCheckoutSession(env, sessionId, fetchImpl);
-  }
+  const mode = stripeModeFromEnv(env);
+  const sessionId = requestedCheckoutSessionId(request, body, auth, mode);
+  let view = await viewFromPaidCheckout(env, sessionId, fetchImpl);
   if (auth && auth.email) {
     if (view && view.email && view.email !== auth.email) {
       throw fail('This checkout session belongs to a different account', 403);
@@ -80,6 +111,7 @@ export async function requireAccountOwner(env, request, body = {}, fetchImpl) {
     if (!view) {
       throw fail('No Treena account for this sign-in', 404);
     }
+    view = attachCheckoutSessionId(view, sessionId || (auth && auth.checkoutSessionId));
     return {
       auth,
       view,

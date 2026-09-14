@@ -67,6 +67,16 @@ export function stripeView(env = {}) {
   };
 }
 
+/** Checkout Session ids only. Junk values like "null" from storage are not sessions. */
+export function looksLikeCheckoutSessionId(sessionId, mode) {
+  const id = String(sessionId || '').trim();
+  if (!id) return '';
+  if (mode === 'live') return id.startsWith('cs_live_') ? id : '';
+  if (mode === 'test') return id.startsWith('cs_test_') ? id : '';
+  if (id.startsWith('cs_test_') || id.startsWith('cs_live_')) return id;
+  return '';
+}
+
 export function assertCheckoutSessionId(sessionId, mode) {
   const id = String(sessionId || '').trim();
   if (mode === 'live') {

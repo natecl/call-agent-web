@@ -49,7 +49,14 @@ fetch('/api/auth/me').then((res) => res.json()).then((me) => {
     document.querySelectorAll('.nav-login, nav a[href$="login.html"], nav a[href$="/login"], nav a[href="login.html"]').forEach((link) => {
       link.textContent = 'Dashboard';
       const base = document.body.getAttribute('data-base') || '.';
-      link.href = page === 'dashboard' ? (link.getAttribute('href') || 'dashboard.html') : `${base}/dashboard.html`;
+      let dashHref = `${base}/dashboard.html`;
+      try {
+        const sid = String(sessionStorage.getItem('treena-session-id') || localStorage.getItem('treena-session-id') || '').trim();
+        if (/^cs_(test|live)_/.test(sid) && page !== 'dashboard') {
+          dashHref += `?session_id=${encodeURIComponent(sid)}`;
+        }
+      } catch (_) {}
+      link.href = page === 'dashboard' ? (link.getAttribute('href') || 'dashboard.html') : dashHref;
       if (page === 'dashboard') link.setAttribute('aria-current', 'page');
     });
     if (page === 'login') location.replace('/dashboard');

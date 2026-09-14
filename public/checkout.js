@@ -26,9 +26,15 @@
     return `${path}?plan=${encodeURIComponent(planId)}`;
   }
 
+  function validCheckoutSessionId(value) {
+    const id = String(value || '').trim();
+    return /^cs_(test|live)_/.test(id) ? id : '';
+  }
+
   function withSession(file, sessionId, planId) {
     const params = new URLSearchParams();
-    if (sessionId) params.set('session_id', sessionId);
+    const sid = validCheckoutSessionId(sessionId);
+    if (sid) params.set('session_id', sid);
     if (planId) params.set('plan', planId);
     const query = params.toString();
     return `${base()}/${file}${query ? `?${query}` : ''}`;
@@ -259,9 +265,17 @@
     } catch (_) {}
   }
 
+  function persistCheckoutSessionId(sessionId) {
+    const sid = validCheckoutSessionId(sessionId);
+    if (!sid) return '';
+    try { sessionStorage.setItem(KEY.session, sid); } catch (_) {}
+    try { localStorage.setItem(KEY.session, sid); } catch (_) {}
+    return sid;
+  }
+
   function storeSession(result, sessionId) {
+    persistCheckoutSessionId((result && result.sessionId) || sessionId);
     try {
-      sessionStorage.setItem(KEY.session, result.sessionId || sessionId);
       if (result.plan) sessionStorage.setItem(KEY.plan, result.plan);
       if (result.email) sessionStorage.setItem(KEY.email, result.email);
       if (result.phone) sessionStorage.setItem(KEY.phone, result.phone);
@@ -272,11 +286,28 @@
 
   function resolveSessionId() {
     const params = new URLSearchParams(location.search);
-    let sessionId = params.get('session_id');
+    const fromQuery = validCheckoutSessionId(params.get('session_id'));
+    if (fromQuery) return persistCheckoutSessionId(fromQuery);
     try {
-      if (!sessionId) sessionId = sessionStorage.getItem(KEY.session);
+      const fromSession = validCheckoutSessionId(sessionStorage.getItem(KEY.session));
+      if (fromSession) return persistCheckoutSessionId(fromSession);
     } catch (_) {}
-    return sessionId;
+    try {
+      return persistCheckoutSessionId(localStorage.getItem(KEY.session));
+    } catch (_) {}
+    return '';
+  }
+
+  function rememberSessionInUrl(sessionId, planId) {
+    const sid = validCheckoutSessionId(sessionId);
+    if (!sid) return;
+    try {
+      const url = new URL(location.href);
+      if (url.searchParams.get('session_id') === sid) return;
+      url.searchParams.set('session_id', sid);
+      if (planId) url.searchParams.set('plan', planId);
+      history.replaceState({}, '', url);
+    } catch (_) {}
   }
 
   function threadSnippet(thread) {
@@ -459,6 +490,7 @@
         showRetain(result.retainAfterCall === 'on' ? 'on' : 'off');
         storeSession(result, result.sessionId || sessionId);
         rememberCsrf(result.csrf);
+        rememberSessionInUrl(result.sessionId || sessionId, result.plan || (paidPlan && paidPlan.id));
         if (hasName(result)) {
           location.replace(withSession('dashboard.html', result.sessionId || sessionId, result.plan || (paidPlan && paidPlan.id)));
           return;
@@ -466,7 +498,11 @@
         setHidden('start-pending', true);
         setHidden('start-name', false);
       } catch (_) {
-        try { sessionStorage.removeItem(KEY.session); } catch (e) {}
+        try {
+          if (!validCheckoutSessionId(sessionStorage.getItem(KEY.session))) {
+            sessionStorage.removeItem(KEY.session);
+          }
+        } catch (e) {}
         location.replace(plan ? href('pay.html', plan.id) : href('pricing.html'));
       }
     })();
@@ -629,6 +665,7 @@
             || (result.user && result.user.retain_call_artifacts ? 'on' : 'off'),
           name: result.name,
         }, result.sessionId || sessionId);
+        rememberSessionInUrl(result.sessionId || sessionId, result.billing && result.billing.plan);
         const billed = result.billing || {};
         applyStripeMode(billed);
         applyComplimentary(billed);
@@ -713,7 +750,7 @@
       let email = '';
       let phone = '';
       let retainAfterCall = 'off';
-      let sessionId = resolveSessionId();
+      let sessionId = resolveSessionId() || undefined;
       try {
         email = sessionStorage.getItem(KEY.email) || '';
         phone = sessionStorage.getItem(KEY.phone) || '';
@@ -738,7 +775,14 @@
             retainAfterCall,
           }),
         });
-        try { sessionStorage.setItem(KEY.name, saved.name || name); } catch (_) {}
+        storeSession({
+          sessionId,
+          plan: saved.plan || (planForSave && planForSave.id),
+          email: saved.email || email,
+          phone: saved.phone || phone,
+          retainAfterCall: saved.retainAfterCall || retainAfterCall,
+          name: saved.name || name,
+        }, sessionId);
         location.replace(withSession('dashboard.html', sessionId, (planForSave && planForSave.id)));
       } catch (error) {
         showError('name-error', error.message || 'Could not save your name');
