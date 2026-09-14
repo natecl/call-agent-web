@@ -69,6 +69,7 @@ export async function billingView(env, sessionView, fetchImpl) {
     badge: live ? null : 'TEST',
     noRealCharge: !live || complimentary,
     complimentary,
+    canManageBilling: !complimentary,
     plan: plan.id,
     planName: plan.name,
     amountCents: plan.amountCents,

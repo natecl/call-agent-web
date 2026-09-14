@@ -46,7 +46,7 @@ fetch('/api/auth/me').then((res) => res.json()).then((me) => {
   }
   const page = document.body.getAttribute('data-page');
   if (me.hasAccount) {
-    document.querySelectorAll('nav a[href$="login.html"], nav a[href$="/login"], nav a[href="login.html"]').forEach((link) => {
+    document.querySelectorAll('.nav-login, nav a[href$="login.html"], nav a[href$="/login"], nav a[href="login.html"]').forEach((link) => {
       link.textContent = 'Dashboard';
       const base = document.body.getAttribute('data-base') || '.';
       link.href = page === 'dashboard' ? (link.getAttribute('href') || 'dashboard.html') : `${base}/dashboard.html`;

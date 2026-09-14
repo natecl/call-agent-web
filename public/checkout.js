@@ -202,6 +202,14 @@
     document.querySelectorAll('[data-complimentary-only]').forEach((el) => {
       el.hidden = !grant;
     });
+    const manage = document.getElementById('manage-billing');
+    if (manage) {
+      const hidePortal = grant || (billed && billed.canManageBilling === false);
+      manage.hidden = hidePortal;
+      manage.disabled = hidePortal;
+      if (hidePortal) manage.setAttribute('aria-disabled', 'true');
+      else manage.removeAttribute('aria-disabled');
+    }
     if (!grant) return;
     document.querySelectorAll('[data-stripe-live-only]').forEach((el) => {
       el.hidden = true;
@@ -458,7 +466,8 @@
 
   function bindDashboardActions(result) {
     const manage = document.getElementById('manage-billing');
-    if (manage) {
+    const complimentaryGrant = Boolean(result.billing && (result.billing.complimentary || result.billing.canManageBilling === false));
+    if (manage && !complimentaryGrant) {
       manage.addEventListener('click', async () => {
         showError('billing-error', '');
         manage.disabled = true;
