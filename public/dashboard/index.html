@@ -1,139 +1,19 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
-  <meta name="description" content="Your Treena dashboard — usage, billing, threads, and call details.">
-  <title>Dashboard — Treena</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230078ff'/%3E%3Ctext x='9' y='30' fill='white' font-family='Arial' font-size='30' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
-  <link rel="preload" href="../assets/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="../style.css?v=20260912-paytest">
-  <link rel="stylesheet" href="../subpages.css?v=20260913-dash1">
-<link rel="stylesheet" href="../motion.css?v=20260912-system2">
-</head>
-<body class="subpage" data-page="dashboard" data-base="..">
-<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
-<symbol id="phone" viewBox="0 0 24 24"><path d="M5 3h3l2 5-2 2c1.5 3 3 4.5 6 6l2-2 5 2v3c0 2-2 3-4 2C9 19 5 15 3 7c-1-2 0-4 2-4Z" fill="currentColor" stroke="none"/></symbol>
-</defs></svg>
-<a class="skip-link" href="#main">Skip to content</a>
-<header class="nav">
-  <a class="brand" href="../index.html" aria-label="Treena home">Treena</a>
-  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../dashboard.html" aria-current="page">Dashboard</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
-  <a class="button primary text-relay" href="sms:+12138653024">Text Treena</a>
-</header>
-<main id="main" class="page-main page-dashboard">
-  <div id="dash-pending" role="status" aria-live="polite">
-    <h1>Loading your dashboard</h1>
-    <p class="page-lead">Checking your Stripe subscription…</p>
-  </div>
-  <div id="dash-ready" hidden>
-    <p class="eyebrow">Your account</p>
-    <h1>Hi, <span data-first-name>there</span>.</h1>
-    <p class="dash-note">This page shows usage, billing, threads, and call details iMessage can’t show. Name lives in account settings after signup.</p>
-    <div class="dash-grid">
-      <section class="dash-section" id="usage">
-        <h2>Usage</h2>
-        <div class="dash-metrics">
-          <p class="dash-metric"><span>Minutes included</span><strong data-minutes-included>0</strong></p>
-          <p class="dash-metric"><span>Minutes used</span><strong data-minutes-used>0</strong></p>
-          <p class="dash-metric"><span>Calls</span><strong data-call-count>0</strong></p>
-        </div>
-        <p class="dash-empty" data-usage-note>Usage totals update after calls.</p>
-      </section>
-      <section class="dash-section" id="billing">
-        <div class="dash-heading">
-          <h2>Billing</h2>
-          <span class="test-badge" data-stripe-test-only hidden>TEST</span>
-        </div>
-        <div class="pay-summary">
-          <div class="pay-row"><span>Plan</span><strong data-plan-name>Personal</strong></div>
-          <div class="pay-row"><span>Monthly price</span><strong>$<span data-plan-price>20</span>/mo</strong></div>
-          <div class="pay-row"><span>Connected minutes</span><strong><span data-plan-minutes>30</span> min</strong></div>
-          <div class="pay-row"><span>Overage</span><strong>$<span data-plan-overage>0.15</span>/min</strong></div>
-          <div class="pay-row"><span>Status</span><strong data-billing-status>active</strong></div>
-          <div class="pay-row" data-period-row hidden><span>Current period</span><strong><span data-period-start>—</span> – <span data-period-end>—</span></strong></div>
-          <div class="pay-row" data-renews-row hidden><span>Renews</span><strong data-renews-at>—</strong></div>
-          <div class="pay-row" data-reset-row hidden><span>Minutes reset</span><strong data-minutes-reset-at>—</strong></div>
-          <div class="pay-row" data-cancel-row hidden><span>Cancels</span><strong data-cancel-effective-at>—</strong></div>
-        </div>
-        <div class="dash-actions">
-          <button class="button secondary" type="button" id="manage-billing">Manage billing</button>
-          <button class="button secondary" type="button" id="cancel-plan">Cancel plan</button>
-        </div>
-        <p class="flow-error" id="billing-error" role="alert" hidden></p>
-        <p class="dash-empty" id="cancel-confirm" hidden>Cancels at the end of this billing period (<span data-cancel-effective-at>—</span>). You’ll keep access until then. No refund for the current period.</p>
-        <div class="dash-actions" id="cancel-confirm-actions" hidden>
-          <button class="button primary" type="button" id="cancel-plan-confirm">Confirm cancel</button>
-          <button class="button secondary" type="button" id="cancel-plan-back">Keep plan</button>
-        </div>
-        <p class="stub-note" data-stripe-live-only>Billed on Stripe. Card details stay in Stripe Customer Portal — never on this page.</p>
-        <p class="stub-note" data-stripe-test-only hidden>No real charge. Stripe TEST only.</p>
-      </section>
-      <section class="dash-section" id="settings">
-        <h2>Account settings</h2>
-        <p class="dash-note">Name lives in account settings after signup. Phone is the number you text Treena from — not Treena’s shared iMessage bot.</p>
-        <p class="flow-error" id="settings-error" role="alert" hidden></p>
-        <p class="dash-empty" id="settings-saved" hidden>Saved.</p>
-        <form id="settings-form">
-          <div class="field">
-            <label for="settings-name">Name</label>
-            <input id="settings-name" name="name" type="text" autocomplete="name" required maxlength="80" aria-describedby="settings-name-hint">
-            <p class="field-hint" id="settings-name-hint">First name is enough. Letters, spaces, apostrophes, and hyphens.</p>
-          </div>
-          <div class="field">
-            <label for="settings-email">Email</label>
-            <input id="settings-email" name="email" type="email" autocomplete="email" readonly>
-          </div>
-          <div class="field">
-            <label for="settings-phone">Phone</label>
-            <input id="settings-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="settings-phone-hint">
-            <p class="field-hint" id="settings-phone-hint">Your number (the one you’ll text from), E.164 like +14155552671. Not Treena’s shared bot number.</p>
-          </div>
-          <div class="field field-check">
-            <label for="settings-retain">
-              <input id="settings-retain" name="retain_after_call" type="checkbox" value="on">
-              Save call audio, transcripts, and history
-            </label>
-            <p class="field-hint" id="settings-retain-hint">Off by default. Login and billing minutes still persist either way.</p>
-          </div>
-          <div class="dash-actions">
-            <button class="button primary" type="submit">Save settings</button>
-            <a class="change-plan" href="/api/auth/logout">Log out</a>
-          </div>
-        </form>
-      </section>
-      <section class="dash-section" id="threads">
-        <h2>Threads</h2>
-        <ul class="dash-list" id="thread-list" hidden></ul>
-        <p class="dash-empty" id="threads-empty">No threads yet. Text Treena at +12138653024.</p>
-      </section>
-      <section class="dash-section" id="observability">
-        <h2>Agent observability</h2>
-        <ul class="dash-list" id="obs-list" hidden></ul>
-        <p class="dash-empty" id="obs-empty">Call details weren’t saved. That’s the default. Turn on save in account settings to keep transcripts and reports.</p>
-      </section>
-    </div>
-  </div>
-</main>
-<footer>
-  <a class="brand" href="../index.html">Treena</a>
-  <span class="footer-right">
-    <span>A little less calling. A little more living.</span>
-    <a href="../privacy.html">Privacy</a>
-    <a href="../pricing.html">Pricing</a>
-  </span>
-</footer>
-<dialog id="contact-dialog" aria-labelledby="contact-title">
-  <button class="dialog-close" aria-label="Close">×</button>
-  <span class="dialog-icon"><svg><use href="#phone"/></svg></span>
-  <p class="eyebrow">A little less calling</p><h2 id="contact-title">Your next call,<br>handled.</h2>
-  <p>Text Treena at +12138653024. That’s the shared iMessage number for everyone.</p>
-  <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
-</dialog>
-<script src="../imessage.js?v=20260913-imessage1"></script>
-<script src="../chrome.js?v=20260912-polish"></script>
-<script src="../checkout.js?v=20260914-live1"></script>
-<script src="../motion.js?v=20260912-motion1"></script>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#181818"><title>Treena — Your account</title><link rel="icon" href="../assets/treena-icon.svg"><link rel="stylesheet" href="../treena-theme.css?v=20260914-neutral22"><link rel="stylesheet" href="../dashboard-ui.css?v=20260914-dashboard1"></head>
+<body class="dashboard-concept" data-page="dashboard" data-base="..">
+<svg class="svg-defs" aria-hidden="true"><defs><symbol id="usage-icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M3 10h18M7 15h4"/></symbol><symbol id="profile-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></symbol><symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol><symbol id="settings-icon" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="#202020"/><circle cx="15" cy="17" r="3" fill="#202020"/></symbol><symbol id="privacy-icon" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol></defs></svg>
+<a class="skip-link" href="#content">Skip to content</a>
+<aside class="account-sidebar"><a class="brand" href="../index.html">treena</a><div class="workspace-label">Your account</div><nav aria-label="Account navigation"><a href="#plan" data-view="plan" aria-current="page"><svg><use href="#usage-icon"/></svg>Plan &amp; usage</a><a href="#settings" data-view="settings"><svg><use href="#settings-icon"/></svg>Settings</a><a href="#privacy" data-view="privacy"><svg><use href="#privacy-icon"/></svg>Privacy</a></nav><div class="sidebar-bottom"><a class="help-link" href="../privacy.html">Privacy &amp; your data <span>↗</span></a><a href="#profile" data-view="profile" class="account-identity"><span class="initials" data-profile-initials>—</span><div><strong><span data-profile-name>—</span></strong><span><span data-plan-name>—</span> member</span></div><span class="profile-chevron" aria-hidden="true">›</span></a></div></aside>
+<main id="content"><header class="account-topbar"><span>Account <span class="slash">/</span> <span id="breadcrumb">Plan &amp; usage</span></span><span class="test-badge" data-stripe-test-only hidden>TEST</span></header>
+<div id="dash-pending" role="status"><h1>Loading your account</h1><p>Getting your plan and usage…</p></div><div id="dash-ready" hidden><section id="plan-view" class="account-view" aria-labelledby="plan-heading"><div class="view-heading"><div><p class="eyebrow">A little less on your plate</p><h1 id="plan-heading">Plan &amp; usage</h1><p>Your plan. Your minutes. All in one place.</p></div></div>
+<article class="plan-panel"><div class="panel-label">Your current plan <span class="status"><i></i><span data-billing-status>—</span></span></div><div class="plan-overview"><div><h2 data-plan-name>—</h2><p>For the everyday calls.</p></div><div class="price">$<span data-plan-price>—</span><span>/ month</span></div></div><div class="plan-bottom"><span><span data-plan-minutes>—</span> connected minutes each month</span><a href="../pricing.html">View plans <svg><use href="#arrow"/></svg></a></div><div class="plan-dates" aria-live="polite"><span data-period-row hidden>Period <b><span data-period-start>—</span> – <span data-period-end>—</span></b></span><span data-renews-row hidden>Renews <b data-renews-at>—</b></span><span data-reset-row hidden>Minutes reset <b data-minutes-reset-at>—</b></span><span data-cancel-row hidden>Plan ends <b data-cancel-effective-at>—</b></span></div></article>
+<article class="usage-panel" id="usage"><div class="panel-label">Monthly usage <span class="quiet">Current billing period</span></div><div class="usage-headline"><div><strong><b data-minutes-remaining>—</b><span>min</span></strong><p>Remaining this month</p></div><span class="usage-fraction"><b data-minutes-used>—</b> of <span data-minutes-included>—</span> min used</span></div><div class="meter" role="progressbar" aria-label="Connected minutes used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div><div class="meter-labels"><span data-usage-percent>—</span><span><span data-plan-minutes>—</span> min included</span></div><div class="reset-row"><span data-reset-date>Monthly reset date unavailable</span><span data-reset-countdown></span></div><div class="usage-note"><span class="tiny-dot"></span>Only time connected on a call counts toward your minutes.</div></article>
+
+<article class="profile-panel metered-panel"><div class="panel-label">Additional usage <span class="quiet">Current billing period</span></div><dl><div><dt>Additional connected minutes</dt><dd><span data-overage-minutes>—</span> min</dd></div><div><dt>Rate after included minutes</dt><dd>$<span data-plan-overage>—</span> / min</dd></div><div><dt>Estimated metered charges</dt><dd data-overage-cost>—</dd></div></dl></article><details class="history-details"><summary>Call activity</summary><p><span data-call-count>—</span> calls · <span data-usage-note>Usage totals update after calls.</span></p><section id="threads"><h2>Threads</h2><ul id="thread-list" hidden></ul><p id="threads-empty">No threads yet. Text Treena at +12138653024.</p></section><section id="observability"><h2>Call details</h2><ul id="obs-list" hidden></ul><p id="obs-empty">Call details weren’t saved. That’s the default. Turn on save in account settings to keep transcripts and reports.</p></section></details><footer class="account-footer"><span>One text. One less thing to do.</span><span class="footer-mark"><img src="../assets/treena-mark.svg" width="20" height="20" alt=""> treena</span></footer></section>
+<section id="profile-view" class="account-view" aria-labelledby="profile-heading" hidden><div class="view-heading"><div><p class="eyebrow">The person behind the texts</p><h1 id="profile-heading">Profile</h1><p>A few details that make Treena yours.</p></div></div><article class="profile-panel"><div class="profile-intro"><span class="initials large" data-profile-initials>—</span><div><h2><span data-profile-name>—</span></h2><p><span data-plan-name>—</span> member</p></div></div><dl><div><dt>Name</dt><dd><span data-profile-name>—</span></dd></div><div><dt>Email</dt><dd><span data-profile-email>—</span></dd></div><div><dt>Phone</dt><dd><span data-profile-phone>—</span></dd></div></dl><p class="profile-note">The number you text Treena from.</p></article><p class="concept-note">Name lives in account settings after signup.</p></section>
+<section id="settings-view" class="account-view" hidden><div class="view-heading"><h1>Settings</h1><p>Your account, billing, and subscription.</p></div>
+<article class="profile-panel" id="billing"><h2>Billing information</h2><p class="profile-note" data-stripe-live-only>Billed on Stripe.</p><p class="profile-note" data-stripe-test-only hidden>No real charge. Stripe TEST only.</p><dl><div><dt>Billing email</dt><dd><span data-profile-email>—</span></dd></div><div><dt>Payment method</dt><dd>Not available</dd></div><div><dt>Next payment</dt><dd><span data-next-payment>Not available</span></dd></div></dl><button class="settings-button" id="manage-billing" type="button">Manage billing <span>↗</span></button><p class="flow-error" id="billing-error" role="alert" hidden></p></article>
+<article class="profile-panel"><h2>Account</h2><div class="settings-row"><div><strong>Personal information</strong><p>Your name, email, and phone number.</p></div><a class="settings-button" href="#profile">View profile <span>→</span></a></div><div class="settings-row"><div><strong>Sign-in and security</strong><p>Manage how you access your account.</p></div><button class="settings-button" disabled>Manage</button></div></article>
+<article class="profile-panel settings-form-panel"><h2>Account details</h2><p class="profile-note">Update the details Treena uses to recognize you.</p><p class="flow-error" id="settings-error" role="alert" hidden></p><p class="concept-note" id="settings-saved" hidden>Saved.</p><form id="settings-form"><div class="field"><label for="settings-name">Name</label><input id="settings-name" name="name" type="text" autocomplete="name" required maxlength="80" aria-describedby="settings-name-hint"><p class="field-hint" id="settings-name-hint">First name is enough.</p></div><div class="field"><label for="settings-email">Email</label><input id="settings-email" name="email" type="email" autocomplete="email" readonly></div><div class="field"><label for="settings-phone">Phone</label><input id="settings-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="settings-phone-hint"><p class="field-hint" id="settings-phone-hint">The number you text Treena from.</p></div><div class="field field-check"><label for="settings-retain"><input id="settings-retain" name="retain_after_call" type="checkbox" value="on"> Save call audio, transcripts, and history</label><p class="field-hint">Off by default. Login and billing minutes still persist.</p></div><div class="dialog-actions"><button class="settings-button primary-action" type="submit">Save settings</button><a class="settings-button" href="/api/auth/logout">Log out</a></div></form></article><article class="profile-panel"><h2>Subscription</h2><div class="settings-row"><div><strong><span data-plan-name>—</span> · $<span data-plan-price>—</span> / month</strong><p><span data-renewal>Renewal date unavailable.</span></p></div><a class="settings-button" href="../pricing.html">View plans</a></div><div class="settings-row cancel-row"><div><strong>Cancel your plan</strong><p>Review cancellation before making any changes.</p></div><button class="settings-button" id="cancel-plan" type="button">Cancel plan</button></div><p class="cancel-confirm" id="cancel-confirm" hidden>Cancels at the end of this billing period (<span data-cancel-effective-at>—</span>). You’ll keep access until then.</p><div class="dialog-actions" id="cancel-confirm-actions" hidden><button class="settings-button" id="cancel-plan-confirm" type="button">Confirm cancel</button><button class="settings-button" id="cancel-plan-back" type="button">Keep plan</button></div></article><p class="concept-note">Billing and cancellation actions open only after your account is verified.</p></section>
+<section id="privacy-view" class="account-view" hidden><div class="view-heading"><h1>Privacy</h1><p>Your calls. Your choice.</p></div><article class="profile-panel"><h2>Off by default</h2><p class="privacy-copy">Choose whether to save call audio, transcripts, and history after your calls.</p><label class="setting-toggle"><span><strong>Save call content</strong><small>Audio, transcripts, and call history</small></span><input type="checkbox" role="switch" aria-label="Save call content" id="dashboard-retain" disabled></label><p class="profile-note">Login and billing minutes are kept either way.</p></article><a class="settings-link" href="../privacy.html">Read the privacy policy <span>↗</span></a><p class="concept-note">Your current saving preference is shown above. Changing it here isn’t available yet.</p></section>
+</div></main><script src="../dashboard-ui.js?v=20260914-dashboard1"></script><script src="../checkout.js?v=20260914-dashboard1"></script></body></html>

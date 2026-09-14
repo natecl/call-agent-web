@@ -1,5 +1,29 @@
 # Landing feature map
 
+Demo playback refinement: the message thread initializes empty and resets to time zero when viewport playback ownership changes. On entry it holds the empty state for 900ms, then reveals the request, reply, call, and result. Reduced-motion still shows the completed static example.
+
+
+Homepage CTA refinement: all Text Treena actions use sage fills and dark labels consistently across home and subpages, per the latest visual review. Watch a call has a dark pill surface and visible border. Destinations and click behavior are unchanged.
+
+
+## Shared motion refinement — sot-ready, not deployed
+
+Removed Log in from top navigation while preserving login routes and contextual links. Equalized pricing card padding and 52px plan buttons. Shared motion adds eased hover/press, animated field focus, scroll reveals across every page, and newly visible form-panel entrances. Same-origin page transitions use native View Transitions with arrival-animation fallback. Reduced-motion preferences disable movement. No navigation interception or submission delays. The use-case carousel now holds each result for 3.2 seconds and transitions whole cards/captions together; the legacy word animation and moving underline are removed. Marketing Text Treena buttons open the Personal signup page directly.
+
+
+## September 14 visual refinement — sot-ready, not deployed
+
+Removed the visible “Illustrative demo” label and connecting cord. Replaced the old use-case illustrations with warm-white and sage outcome cards. Marketing “Text Treena” links now open `/account?plan=personal` using a separate `signup-entry` class, so SMS config cannot rewrite them. The post-payment ready action still opens the shared iMessage bot; auth, billing and call behavior are unchanged. This supersedes historical destination/artwork descriptions below.
+
+
+## Current UI rebrand — sot-ready, not deployed
+
+The September 2026 user-requested rebrand covers all public pages and directory aliases. `public/treena-theme.css` is the current working-tree presentation source: ink canvas, warm-white Manrope lettering, restrained sage actions, shared waveform identity, realistic two-phone demo, and matching pricing, privacy, account, login, pay, start, and dashboard surfaces. See [TREENA_DESIGN_SYSTEM.md](TREENA_DESIGN_SYSTEM.md).
+
+The records below describe the previously shipped visual system and live-host measurements; their white/Inter/blue styling and 8868-byte home hash are historical live baselines, not claims about this redesigned working tree. The redesign has not been deployed. The current redesigned working tree `public/index.html` is 9384 bytes with SHA-256 `1cf1c83cb46809673a2856927370227b7b60524ee8a3982fa294f19b1a34d90b`. All forms, inputs, button attributes, inline scripts, script inclusion paths, legal copy, prices, and integration behavior are retained. `app.js` changes are limited to animation transforms, easing durations, and entrance distances. The additional home explanation and closing CTA are presentation, using the existing shared iMessage destination.
+
+Validation: `npm run verify` passes against the mock Stripe/Fly checks. All eight page layouts were checked at 390, 768, 1024, and 1440px. Gated account states were reviewed in isolated, script-free fixtures; no account or payment was submitted. Authenticated production data and live checkout were not exercised.
+
 This file maps the public landing as a product surface. It is not an implementation plan.
 
 ## Account + Stripe paywall
@@ -339,3 +363,45 @@ These items are outside this map.
 - The product calling stack in `natecl/call-agent` (this repo POSTs `/accounts/sync` and HMAC-GETs `/accounts/dashboard`; it does not run Fly)
 - L1 redial / live Linq messaging / live call prove
 - Per-user Treena DIDs (account phone is the user’s number; one shared bot `+12138653024`)
+
+Homepage scroll reveal: demo, three steps, use cases, final CTA and footer enter with a 1000ms eased 28px rise. Inner elements stagger by 90ms; phone sizing and playback stay independent. Reduced motion bypasses these effects.
+
+Navigation transition fix: the header crossfades independently from moving page content; active capsules no longer share a geometry-morph transition or scale on hover. This prevents selector jumps between page and anchor navigation.
+
+Demo scroll zoom: the full demo eases from 97% to 100% as its center approaches the viewport center (98.5% to 100% on mobile). Stable outer geometry prevents layout shifts. Reduced-motion keeps full size.
+
+Latest approved homepage subhead: “Your AI phone call assistant.” This user-requested copy supersedes the earlier iMessage-specific subhead requirement. Homepage metadata and verification match.
+
+Fluid navigation: one measured capsule follows hover, keyboard focus, selected pages and homepage section clicks with a 480ms eased glide. Native link navigation stays unchanged; reduced motion disables the glide.
+
+Demo refinement: reduced the entrance to a 12px rise with a gentler fade, removed separate phone entrance animations, and removed the live-caption waveform.
+
+Outcome cards advance every 3.2 seconds with a 680ms subtle rise/scale settle and border easing; captions follow after 40ms. Reduced-motion remains static.
+
+Latest outcome transition: cards and captions slide 48px from right to left, replacing the scale/border effect. Entry is 620ms, exit 300ms; reduced motion stays static.
+
+Outcome playback starts its first slide 200ms after becoming active in the viewport, then advances every 3.2 seconds.
+
+iMessage demo header: continuous white surface, centered waveform avatar, vector back chevron and phone icon replace the gray strip and video icon.
+
+Reference refinement: iMessage header uses pale round back/phone controls, a centered sage avatar and compact contact-name pill, plus a softer composer.
+
+Product depth refinement: darker charcoal call screen, inset hardware edges and restrained contact shadows, slightly offset desktop phones, and a raised caption surface. These requested product-demo shadows are exceptions to the flat brand-card treatment.
+
+Further depth pass: near-black demo stage and call screen, stronger phone contact/ambient shadows, neutral raised call controls and light native composer surfaces.
+
+Latest color adjustment: demo stage #191c19 and call screen #22272b soften the near-black treatment while preserving depth.
+
+Neutral-gray rebrand refinement: page #181818, surfaces #202020, raised surfaces #252525, borders #333333. Removed green tint from navigation capsules, form surfaces, cards, demo stage and hardware. Sage remains for buttons, brand marks, focus and small status accents. This supersedes earlier ink/surface color values.
+
+Dashboard concept — sot-ready mockup only: `/mockups/dashboard.html` is a separate static Plan & usage / Profile concept. Uses labeled fictional data, existing Personal pricing, derived remaining minutes, and an illustrative reset date. Existing authenticated dashboard is unchanged. Billing-period reset data is not currently exposed by the inspected dashboard response; live wiring is outside this mockup. Checked 390/768/1024/1440 widths and profile navigation.
+
+## Integrated dashboard UI — sot-ready, not deployed
+
+The approved account shell now renders at `public/dashboard.html` and its directory alias. `dashboard-ui.css` and `dashboard-ui.js` provide Plan & usage, Settings, Privacy, and bottom-left Profile navigation. `checkout.js` retains its existing session/name gates and API request, passing the verified response into the UI renderer. Real usage drives remaining minutes, the progress bar, additional minutes, and explicitly estimated overage cost. Profile and current retention state come from the same response. Existing threads and call details remain in a secondary disclosure.
+
+No mock account values are used on real routes. Reset dates, payment details, billing management, cancellation, and editing account/privacy preferences are not exposed by the existing dashboard API and are shown unavailable/disabled; no new backend capability is claimed. Backend integration of those controls is still not-started under the UI-only scope. The static `/mockups/dashboard.html` remains a separate design reference.
+
+Validation: `npm run verify`; `node --test scripts/dashboard-ui.test.mjs` (4 checks covering usage, overage bounds, missing values, safe profile text and retention); integrated fixture layouts at 390/768/1024/1440; settings navigation and disabled unsupported controls. No live account or payment actions performed.
+
+Backend completion handoff: see `docs/DASHBOARD_BACKEND_HANDOFF.md` for missing dashboard capabilities, source mapping, security/data audit points, and acceptance checks.

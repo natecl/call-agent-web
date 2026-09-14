@@ -8,13 +8,17 @@ Cloud Agents in `natecl/call-agent-web` (public Treena site, Cloudflare Pages pr
 npm run verify
 ```
 
-That is `scripts/verify-paywall.mjs`. Keep [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md) truthful and in lockstep with it. Default CI has no secrets (mock Stripe / mock Fly). Optional: `VERIFY_LIVE_ORIGIN=https://usetreena.com` GETs live `/` and checks SHA-256 plus “Your phone call agent, right in iMessage.”
+That is `scripts/verify-paywall.mjs`. Keep [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md) truthful and in lockstep with it. Default CI has no secrets (mock Stripe / mock Fly). Optional: `VERIFY_LIVE_ORIGIN=https://usetreena.com` GETs live `/` and checks SHA-256 plus “Your AI phone call assistant.”
 
 Status words: **shipped**, **sot-ready**, **not-started**.
 
 ## TRE-22 home
 
-Home is unfrozen. Pixel owns restyle. Do not invent a product UX redesign. Keep “Your phone call agent, right in iMessage.”
+Home is unfrozen. The approved Treena rebrand is the source of truth for presentation. Keep “Your AI phone call assistant.”
+
+## Treena UI redesign
+
+The rebrand implementation is UI-only and lives in `public/treena-theme.css` (shared tokens and page styling), `public/motion.js` (navigation, page, focus, and interaction motion), `public/app.js` (home demo and scroll playback), and `public/dashboard-ui.css` / `public/dashboard-ui.js` (dashboard presentation and rendering). The approved visual brief is [`docs/TREENA_DESIGN_SYSTEM.md`](docs/TREENA_DESIGN_SYSTEM.md); the dashboard backend handoff is [`docs/DASHBOARD_BACKEND_HANDOFF.md`](docs/DASHBOARD_BACKEND_HANDOFF.md). Every public HTML entry and directory alias loads the shared theme after the legacy layout CSS. Preserve existing IDs, routes, forms, and API contracts when continuing the redesign.
 
 ## Accounts (this repo)
 

@@ -185,6 +185,8 @@
     fillDate('[data-renews-at]', renews);
     fillDate('[data-minutes-reset-at]', reset);
     fillDate('[data-cancel-effective-at]', cancelAt);
+    fillDate('[data-renewal]', renews);
+    fillDate('[data-next-payment]', renews);
     const cancelBtn = document.getElementById('cancel-plan');
     if (cancelBtn) {
       cancelBtn.hidden = Boolean(canceling) || (billed && billed.status === 'canceled');
@@ -561,6 +563,7 @@
         renderThreads(Array.isArray(result.threads) ? result.threads : []);
         renderObservability(Array.isArray(result.calls) ? result.calls : []);
         bindDashboardActions(result);
+        if (window.renderTreenaDashboard) window.renderTreenaDashboard(result);
         setHidden('dash-pending', true);
         setHidden('dash-ready', false);
       } catch (_) {

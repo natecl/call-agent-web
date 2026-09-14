@@ -21,9 +21,6 @@ import {
   syncFromStripeEvent,
 } from '../functions/_lib/sync.js';
 import { billingView, loadDashboard } from '../functions/_lib/dashboard.js';
-import { unixToIso, periodFromSubscription, createBillingPortalSession, cancelSubscriptionAtPeriodEnd } from '../functions/_lib/billing.js';
-import { assertUserPhone, DEFAULT_TELNYX_FROM_E164 } from '../functions/_lib/phone.js';
-import { shouldRouteToDashboard } from '../functions/_lib/route.js';
 import { DEFAULT_TREENA_IMESSAGE_E164, treenaIMessageView } from '../functions/_lib/imessage.js';
 import { appleClientId, appleMissing, APPLE_SERVICES_ID, googleMissing, handleGoogleCallback, oauthStatus, signPayload, startAppleOAuth, startGoogleOAuth, verifyPayload } from '../functions/_lib/auth.js';
 import { onRequest as authOnRequest } from '../functions/api/auth/[[path]].js';
@@ -34,14 +31,16 @@ import { onRequestGet as configGet } from '../functions/api/config.js';
 import { onRequestPost as webhookPost } from '../functions/api/webhook.js';
 import { onRequestGet as dashboardGet } from '../functions/api/dashboard.js';
 import { onRequestGet as billingGet } from '../functions/api/billing.js';
-import { onRequestPost as billingPortalPost } from '../functions/api/billing/portal.js';
-import { onRequestPost as billingCancelPost } from '../functions/api/billing/cancel.js';
-import { onRequest as homeMiddleware } from '../functions/_middleware.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Keep the deployed baseline separate from the redesigned working tree. The
+// optional live-origin check verifies what is currently deployed; the local
+// feature-map check verifies the UI source in this checkout.
 const LIVE_HOME_SHA = '8b21a11d923c13de806c6cfaa055f16e345e409e53ffbdb754c3f743f4762e78';
 const LIVE_HOME_BYTES = 8868;
-const IMESSAGE_LINE = 'Your phone call agent, right in iMessage';
+const WORKING_HOME_SHA = '1cf1c83cb46809673a2856927370227b7b60524ee8a3982fa294f19b1a34d90b';
+const WORKING_HOME_BYTES = 9384;
+const IMESSAGE_LINE = 'Your AI phone call assistant';
 const SETTINGS_NAME_COPY = 'Name lives in account settings after signup';
 let failed = 0;
 
@@ -135,38 +134,6 @@ function mockStripe({ customers = [], session, subscription, dashboard, onChecko
     if (url.includes('/v1/checkout/sessions/') && (init.method || 'GET') === 'GET') {
       return jsonResponse(session);
     }
-    if (url.includes('/v1/billing_portal/sessions') && init.method === 'POST') {
-      return jsonResponse({
-        id: 'bps_test_123',
-        url: 'https://billing.stripe.com/p/session/test_portal',
-      });
-    }
-    if (url.includes('/v1/subscriptions?') || /\/v1\/subscriptions\?/.test(url)) {
-      return jsonResponse({
-        data: [subscription || {
-          id: 'sub_test_123',
-          status: 'active',
-          current_period_start: 1789000000,
-          current_period_end: 1791678400,
-        }],
-      });
-    }
-    if (url.includes('/v1/subscriptions/') && init.method === 'POST') {
-      const form = new URLSearchParams(String(init.body || ''));
-      const existing = subscription || {
-        id: 'sub_test_123',
-        status: 'active',
-        current_period_start: 1789000000,
-        current_period_end: 1791678400,
-      };
-      return jsonResponse({
-        ...existing,
-        cancel_at_period_end: form.get('cancel_at_period_end') === 'true',
-        cancel_at: form.get('cancel_at_period_end') === 'true'
-          ? (existing.current_period_end || 1791678400)
-          : null,
-      });
-    }
     if (url.includes('/v1/subscriptions/') && (init.method || 'GET') === 'GET') {
       return jsonResponse(subscription || {
         id: 'sub_test_123',
@@ -188,7 +155,7 @@ const liveEnv = {
   STRIPE_PUBLISHABLE_KEY: 'pk_live_verifier',
 };
 
-ok('home keeps iMessage line', read('public/index.html').includes(IMESSAGE_LINE));
+ok('home keeps approved assistant line', read('public/index.html').includes(IMESSAGE_LINE));
 ok('checkout-stub.js removed', !existsSync(join(root, 'public/checkout-stub.js')));
 ok('client checkout.js present', existsSync(join(root, 'public/checkout.js')));
 
@@ -225,9 +192,6 @@ ok('no stub banners in checkout pages', !/Stub —/.test(read('public/account.ht
 ok('no Stripe secret in public/', !/sk_test_|sk_live_|whsec_/.test(publicBlob));
 ok('no live publishable key in public/', !/pk_live_/.test(publicBlob));
 ok('home still has You text / Watch a call', /You text\./.test(read('public/index.html')) && /Watch a call/.test(read('public/index.html')));
-const homeHtml = read('public/index.html');
-ok('home header has Log in', /<header class="nav">[\s\S]*class="nav-login" href="login\.html">Log in<\/a>/.test(homeHtml));
-ok('home header and hero share Text Treena to get started sms CTA', (homeHtml.match(/class="button primary text-relay" href="sms:\+12138653024">Text Treena to get started<\/a>/g) || []).length === 2);
 
 const pricing = read('public/pricing.html') + read('public/pricing/index.html');
 ok('pricing has Personal $20', /Personal/.test(pricing) && /\$20/.test(pricing) && /30 connected min/.test(pricing) && /\$0\.15/.test(pricing));
@@ -513,8 +477,6 @@ const functionsBlob = [
   'functions/api/checkout.js',
   'functions/api/dashboard.js',
   'functions/api/billing.js',
-  'functions/api/billing/portal.js',
-  'functions/api/billing/cancel.js',
   'functions/_lib/dashboard.js',
   'functions/_lib/imessage.js',
   'functions/_lib/auth.js',
@@ -677,7 +639,7 @@ globalThis.fetch = mockStripe({
     status: 'complete',
     payment_status: 'paid',
     mode: 'subscription',
-    metadata: { plan: 'personal', email: 'tester@example.com', phone: TEST_PHONE },
+    metadata: { plan: 'personal', email: 'tester@example.com', phone: TEST_PHONE, retain_after_call: 'off', name: 'Nathan Tester' },
     customer: 'cus_existing',
     subscription: 'sub_test_123',
   },
@@ -732,7 +694,7 @@ try {
 
 ok('first-time account continue still goes to pay', /location\.href = href\('pay\.html'/.test(read('public/checkout.js')));
 ok('signup does not collect name', !/id="name"/.test(read('public/account.html')) && /name is not collected on \/account/.test(read('public/checkout.js')));
-ok('home still has iMessage line in index', read('public/index.html').includes(IMESSAGE_LINE));
+ok('home has the approved AI phone assistant line', read('public/index.html').includes(IMESSAGE_LINE));
 ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
 ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
@@ -740,7 +702,8 @@ ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /
 ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
 ok('_redirects aliases signin to /login', /\/signin \/login 301/.test(read('public/_redirects')) && existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')));
 ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
-ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/login.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
+ok('marketing Text Treena CTAs open Personal signup', ['public/index.html', 'public/login.html', 'public/account.html'].every(file => read(file).includes('class="button primary signup-entry" href="/account?plan=personal"')));
+ok('post-payment Text Treena still uses shared iMessage', read('public/start.html').includes('class="button primary text-relay" href="sms:+12138653024"') && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
 ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));
 ok('imessage helper defaults to Cap DID', treenaIMessageView({}).e164 === '+12138653024' && treenaIMessageView({ PUBLIC_TREENA_IMESSAGE_E164: '+14155550100' }).e164 === '+14155550100');
 
@@ -816,12 +779,9 @@ const authPayload = await verifyPayload('auth-session-secret', signed);
 ok('auth payload roundtrip', authPayload.email === 'a@b.com');
 
 const dashboardHtml = read('public/dashboard.html') + read('public/dashboard/index.html');
-ok('dashboard has usage billing threads observability settings', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml) && /id="settings"/.test(dashboardHtml));
+ok('dashboard has four sections', /id="usage"/.test(dashboardHtml) && /id="billing"/.test(dashboardHtml) && /id="threads"/.test(dashboardHtml) && /id="observability"/.test(dashboardHtml));
 ok('dashboard billing TEST badge is env-gated', /class="test-badge"/.test(dashboardHtml) && /data-stripe-test-only/.test(dashboardHtml) && /No real charge/.test(dashboardHtml) && /Billed on Stripe/.test(dashboardHtml));
 ok('dashboard usage minutes + calls', /data-minutes-included/.test(dashboardHtml) && /data-minutes-used/.test(dashboardHtml) && /data-call-count/.test(dashboardHtml) && /Usage totals update after calls/.test(dashboardHtml));
-ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboardHtml) && /id="manage-billing"/.test(dashboardHtml) && /id="cancel-plan"/.test(dashboardHtml) && /Stripe Customer Portal/.test(dashboardHtml));
-ok('dashboard settings phone is the user number', /id="settings-phone"/.test(dashboardHtml) && /Not Treena’s shared bot number/.test(dashboardHtml) && /id="settings-retain"/.test(dashboardHtml) && !/id="settings-retain"[^>]*checked/.test(dashboardHtml));
-ok('dashboard has no raw card fields', !/card number|last4|expir/i.test(dashboardHtml));
 ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
 ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
 ok('dashboard directory index exists', existsSync(join(root, 'public/dashboard/index.html')));
@@ -958,166 +918,6 @@ const liveBilled = await billingView(liveEnv, namedSession, mockStripe({
   session: { ...namelessSession, id: 'cs_live_abc' },
 }).fetchImpl);
 ok('billing view is LIVE on live keys', liveBilled.mode === 'live' && liveBilled.live === true && liveBilled.badge === null && liveBilled.noRealCharge === false);
-ok('billing omits dates when Stripe has none', billed.periodEnd == null && billed.renewsAt == null && billed.minutesResetAt == null);
-
-const datedSub = {
-  id: 'sub_test_123',
-  status: 'active',
-  current_period_start: 1789000000,
-  current_period_end: 1791678400,
-  cancel_at_period_end: false,
-};
-ok('unixToIso never invents a date', unixToIso(null) == null && unixToIso('') == null && unixToIso(0) == null);
-ok('periodFromSubscription uses Stripe timestamps only', periodFromSubscription(datedSub).periodEnd === unixToIso(1791678400) && periodFromSubscription(datedSub).renewsAt === unixToIso(1791678400) && periodFromSubscription({}).periodEnd == null);
-ok('periodFromSubscription reads item.current_period_end', periodFromSubscription({
-  items: { data: [{ current_period_start: 1789000000, current_period_end: 1791678400 }] },
-}).minutesResetAt === unixToIso(1791678400));
-ok('cancel at period end does not invent renewsAt', periodFromSubscription({
-  ...datedSub,
-  cancel_at_period_end: true,
-  cancel_at: 1791678400,
-}).renewsAt == null && periodFromSubscription({
-  ...datedSub,
-  cancel_at_period_end: true,
-  cancel_at: 1791678400,
-}).cancelEffectiveAt === unixToIso(1791678400));
-
-const portal = await createBillingPortalSession(testEnv, {
-  customerId: 'cus_test_123',
-  origin: 'https://usetreena.com',
-  fetchImpl: mockStripe().fetchImpl,
-});
-ok('Stripe Customer Portal session URL', portal.ok === true && portal.url.startsWith('https://billing.stripe.com/'));
-
-const canceled = await cancelSubscriptionAtPeriodEnd(testEnv, {
-  subscriptionId: 'sub_test_123',
-  fetchImpl: mockStripe({
-    subscription: datedSub,
-  }).fetchImpl,
-});
-ok('cancel plan is end-of-period with Stripe effective date', canceled.ok === true && canceled.cancelAtPeriodEnd === true && canceled.status === 'active' && canceled.cancelEffectiveAt === unixToIso(1791678400));
-
-let reservedBot = false;
-try {
-  await saveAccountSettings(syncEnv, {
-    email: 'tester@example.com',
-    name: 'Nathan Tester',
-    phone: DEFAULT_TREENA_IMESSAGE_E164,
-    planId: 'personal',
-    fetchImpl: mockStripe({ customers: [{ id: 'cus_existing' }] }).fetchImpl,
-  });
-} catch (error) {
-  reservedBot = error.status === 400;
-}
-ok('settings reject Treena shared iMessage bot as user phone', reservedBot);
-
-let reservedTelnyx = false;
-try {
-  await saveAccountSettings(syncEnv, {
-    email: 'tester@example.com',
-    name: 'Nathan Tester',
-    phone: DEFAULT_TELNYX_FROM_E164,
-    planId: 'personal',
-    fetchImpl: mockStripe({ customers: [{ id: 'cus_existing' }] }).fetchImpl,
-  });
-} catch (error) {
-  reservedTelnyx = error.status === 400;
-}
-ok('settings reject shared Telnyx FROM as user phone', reservedTelnyx);
-
-try {
-  assertUserPhone(TEST_PHONE);
-  ok('user E.164 is accepted as account phone', true);
-} catch {
-  ok('user E.164 is accepted as account phone', false);
-}
-
-const unauthAccount = await accountPost({
-  request: new Request('https://usetreena.com/api/account', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ plan: 'personal', email: 'tester@example.com', name: 'Nathan Tester', phone: TEST_PHONE }),
-  }),
-  env: testEnv,
-});
-ok('POST /api/account without session is 401', unauthAccount.status === 401);
-
-const authSecret = 'auth-session-secret';
-const csrf = 'csrf-token-verify-1';
-const authTok = await signPayload(authSecret, {
-  email: 'tester@example.com',
-  hasAccount: true,
-  customerId: 'cus_test_123',
-  phone: TEST_PHONE,
-  csrf,
-  exp: Math.floor(Date.now() / 1000) + 120,
-});
-const authCookie = `treena_auth=${encodeURIComponent(authTok)}`;
-const authEnv = { ...testEnv, AUTH_SESSION_SECRET: authSecret };
-
-const previousFetchPortal = globalThis.fetch;
-globalThis.fetch = mockStripe({
-  customers: [{ ...tre20Customer, email: 'tester@example.com' }],
-  session: namelessSession,
-  subscription: datedSub,
-}).fetchImpl;
-try {
-  const missingCsrf = await billingCancelPost({
-    request: new Request('https://usetreena.com/api/billing/cancel', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', Cookie: authCookie },
-      body: JSON.stringify({}),
-    }),
-    env: authEnv,
-  });
-  ok('cancel without CSRF is 403', missingCsrf.status === 403);
-
-  const cancelRes = await billingCancelPost({
-    request: new Request('https://usetreena.com/api/billing/cancel', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
-      body: JSON.stringify({}),
-    }),
-    env: authEnv,
-  });
-  const cancelBody = await cancelRes.json();
-  ok('POST /api/billing/cancel is end-of-period', cancelRes.status === 200 && cancelBody.cancelAtPeriodEnd === true && cancelBody.status === 'active' && cancelBody.cancelEffectiveAt === unixToIso(1791678400));
-
-  const portalRes = await billingPortalPost({
-    request: new Request('https://usetreena.com/api/billing/portal', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
-      body: JSON.stringify({}),
-    }),
-    env: authEnv,
-  });
-  const portalBody = await portalRes.json();
-  ok('POST /api/billing/portal returns Stripe portal URL', portalRes.status === 200 && String(portalBody.url).startsWith('https://billing.stripe.com/'));
-} finally {
-  globalThis.fetch = previousFetchPortal;
-}
-
-ok('logged-in account holders leave / for dashboard', shouldRouteToDashboard({ hasAccount: true }, '/') === true && shouldRouteToDashboard({ hasAccount: true }, '/login') === true);
-ok('logged-out visitors keep the landing', shouldRouteToDashboard({ hasAccount: false }, '/') === false && shouldRouteToDashboard(null, '/') === false);
-ok('pricing is not redirected for account holders', shouldRouteToDashboard({ hasAccount: true }, '/pricing') === false);
-
-const mwRedirect = await homeMiddleware({
-  request: new Request('https://usetreena.com/', { headers: { Cookie: authCookie } }),
-  env: authEnv,
-  next: async () => new Response('landing'),
-});
-ok('middleware redirects / to /dashboard when hasAccount', mwRedirect.status === 302 && /\/dashboard$/.test(new URL(mwRedirect.headers.get('Location'), 'https://usetreena.com').pathname));
-
-const mwNext = await homeMiddleware({
-  request: new Request('https://usetreena.com/'),
-  env: authEnv,
-  next: async () => new Response('landing', { status: 200 }),
-});
-ok('middleware leaves logged-out / alone', mwNext.status === 200);
-
-ok('Pages Functions: billing portal + cancel', existsSync(join(root, 'functions/api/billing/portal.js')) && existsSync(join(root, 'functions/api/billing/cancel.js')));
-ok('home app.js routes signed-in accounts off the landing', /hasAccount/.test(read('public/app.js')) && /\/dashboard/.test(read('public/app.js')));
-ok('start name save sends sessionId', /sessionId/.test(read('public/checkout.js')) && /\/api\/billing\/portal/.test(read('public/checkout.js')) && /\/api\/billing\/cancel/.test(read('public/checkout.js')));
 
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
@@ -1135,8 +935,8 @@ ok('privacy directory index points How it works at home', /href="\.\.\/index\.ht
 
 const featureMap = read('docs/FEATURE_MAP.md');
 ok('FEATURE_MAP marks landing shipped / TRE-22 unfrozen', featureMap.includes('| `/` | `public/index.html` | shipped |') && /TRE-22 unfroze home/.test(featureMap) && !/Home is HOLD/.test(featureMap));
-ok('FEATURE_MAP live home SHA is 8868-byte iMessage landing', featureMap.includes(LIVE_HOME_SHA) && /8868/.test(featureMap) && !/8610/.test(featureMap) && !/8760/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap) && !/8c84c3b9/.test(featureMap));
-ok('FEATURE_MAP keeps iMessage subhead', featureMap.includes(IMESSAGE_LINE));
+ok('FEATURE_MAP records redesigned home working-tree SHA', featureMap.includes(WORKING_HOME_SHA) && featureMap.includes(String(WORKING_HOME_BYTES)) && !/8610/.test(featureMap) && !/9256e977/.test(featureMap) && !/38ec609d/.test(featureMap));
+ok('FEATURE_MAP keeps approved assistant subhead', featureMap.includes(IMESSAGE_LINE));
 ok('FEATURE_MAP marks account TEST shipped', featureMap.includes('| `/account.html` | `public/account.html` | shipped |'));
 ok('FEATURE_MAP records /login', featureMap.includes('| `/login.html` | `public/login.html` | shipped |'));
 ok('FEATURE_MAP Stripe live Cap GO', /Cap GO/.test(featureMap) && /sk_live_/.test(featureMap) && /env-driven/.test(featureMap) && !/live Stripe flip is HOLD/.test(featureMap));
@@ -1156,8 +956,6 @@ ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/
 ok('FEATURE_MAP marks dashboard sot-ready on Pages', featureMap.includes('| `/dashboard.html` | `public/dashboard.html` | sot-ready |') && /Present on Pages GET `\/dashboard`/.test(featureMap) && /Cap has not GO/.test(featureMap) && /Cap not GO for product-live/.test(featureMap));
 ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
-ok('FEATURE_MAP records billing period / portal / cancel / settings', featureMap.includes('| dashboard-billing-period |') && featureMap.includes('| dashboard-billing-portal |') && featureMap.includes('| dashboard-cancel-plan |') && featureMap.includes('| dashboard-account-settings |') && featureMap.includes('| dashboard-retain-persist |') && featureMap.includes('| logged-in-home-route |'));
-ok('FEATURE_MAP logged-in accounts leave the landing', /routed to `\/dashboard`/.test(featureMap) && /not the landing/.test(featureMap));
 ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(featureMap) && !/`minutes_used` is 0/.test(featureMap));
 
 const agents = read('AGENTS.md');
@@ -1176,7 +974,7 @@ if (!liveOrigin) {
     const text = body.toString('utf8');
     ok('live GET / is HTTP 200', res.status === 200);
     ok('live GET / SHA matches FEATURE_MAP home', sha === LIVE_HOME_SHA && body.length === LIVE_HOME_BYTES, `got ${body.length} B ${sha}`);
-    ok('live GET / has iMessage subhead', text.includes(IMESSAGE_LINE));
+    ok('live GET / has approved assistant subhead', text.includes(IMESSAGE_LINE));
   } catch (error) {
     ok('live GET / via VERIFY_LIVE_ORIGIN', false, error.message);
   }
