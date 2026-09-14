@@ -8,7 +8,7 @@
   <title>Treena — Your account</title>
   <link rel="icon" href="../assets/treena-icon.svg">
   <link rel="stylesheet" href="../treena-theme.css?v=20260914-navleft">
-  <link rel="stylesheet" href="../dashboard-ui.css?v=20260914-dashboard1">
+  <link rel="stylesheet" href="../dashboard-ui.css?v=20260914-privacy-retain">
 </head>
 <body class="dashboard-concept" data-page="dashboard" data-base="..">
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -240,11 +240,11 @@
         <p>Your calls. Your choice.</p>
       </div>
       <article class="profile-panel">
-        <h2>Off by default</h2>
+        <h2 id="privacy-retain-heading">Off by default</h2>
         <p class="privacy-copy">Choose whether to save call audio, transcripts, and history after your calls.</p>
         <label class="setting-toggle">
           <span><strong>Save call content</strong><small>Audio, transcripts, and call history</small></span>
-          <input type="checkbox" role="switch" aria-label="Save call content" id="dashboard-retain" disabled>
+          <input type="checkbox" role="switch" aria-checked="false" aria-label="Save call content" id="dashboard-retain" disabled>
         </label>
         <p class="profile-note">Login and billing minutes are kept either way.</p>
       </article>
@@ -254,7 +254,7 @@
     </section>
   </div>
 </main>
-<script src="../dashboard-ui.js?v=20260914-dashboard1"></script>
-<script src="../checkout.js?v=20260914-session1"></script>
+<script src="../dashboard-ui.js?v=20260914-privacy-retain"></script>
+<script src="../checkout.js?v=20260914-privacy-retain"></script>
 </body>
 </html>

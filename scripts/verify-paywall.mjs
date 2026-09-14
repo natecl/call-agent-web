@@ -901,6 +901,8 @@ ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboar
 ok('dashboard complimentary grant copy', /Complimentary access\. No Stripe charge/.test(dashboardHtml) && /data-complimentary-only/.test(dashboardHtml) && /Manage billing is for paid Stripe subscriptions/.test(dashboardHtml) && !/Manage billing opens Stripe Customer Portal/.test(dashboardHtml));
 ok('dashboard JS hides Manage billing for complimentary grants', /manage\.hidden = hidePortal/.test(read('public/checkout.js')) && /Complimentary accounts do not use Stripe Customer Portal/.test(read('functions/api/billing/portal.js')));
 ok('dashboard settings phone is the user number', /id="settings-phone"/.test(dashboardHtml) && /Not Treena’s shared bot number/.test(dashboardHtml) && /id="settings-retain"/.test(dashboardHtml) && !/id="settings-retain"[^>]*checked/.test(dashboardHtml));
+ok('privacy summary heading is bound to retain state', /id="privacy-retain-heading"/.test(dashboardHtml) && /id="dashboard-retain"/.test(dashboardHtml) && /Off by default/.test(dashboardHtml));
+ok('privacy summary reads persisted retainAfterCall', /privacy-retain-heading/.test(read('public/dashboard-ui.js')) && /settings\.retainAfterCall/.test(read('public/dashboard-ui.js')) && /retain_call_artifacts: saved\.retainAfterCall === 'on'/.test(read('public/checkout.js')));
 ok('dashboard has no raw card fields', !/card number|last4|expir/i.test(dashboardHtml));
 ok('dashboard threads empty state', /No threads yet\. Text Treena at \+12138653024\./.test(dashboardHtml));
 ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
