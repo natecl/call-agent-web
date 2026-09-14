@@ -8,6 +8,10 @@ const GOOGLE_USERINFO = 'https://openidconnect.googleapis.com/v1/userinfo';
 const APPLE_AUTH = 'https://appleid.apple.com/auth/authorize';
 const APPLE_TOKEN = 'https://appleid.apple.com/auth/token';
 const APPLE_KEYS = 'https://appleid.apple.com/auth/keys';
+export const APPLE_SERVICES_ID = 'com.usetreena.signin';
+export const CANONICAL_PUBLIC_ORIGIN = 'https://usetreena.com';
+export const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback';
+export const APPLE_CALLBACK_PATH = '/api/auth/apple/callback';
 
 function fail(message, status, extra) {
   const err = new Error(message);
@@ -47,7 +51,10 @@ function fromUtf8(bytes) {
 export function publicOrigin(request, env = {}) {
   const explicit = textOf(env, 'AUTH_PUBLIC_ORIGIN').replace(/\/+$/, '');
   if (explicit) return explicit;
-  return new URL(request.url).origin;
+  const url = new URL(request.url);
+  const host = String(url.hostname || '').toLowerCase();
+  if (host === 'usetreena.com' || host === 'www.usetreena.com') return CANONICAL_PUBLIC_ORIGIN;
+  return url.origin;
 }
 
 export function safeNextPath(raw, fallback = '/account.html?plan=personal') {
@@ -66,9 +73,12 @@ export function googleMissing(env = {}) {
   return missing;
 }
 
+export function appleClientId(env = {}) {
+  return textOf(env, 'APPLE_CLIENT_ID') || APPLE_SERVICES_ID;
+}
+
 export function appleMissing(env = {}) {
   const missing = [];
-  if (!textOf(env, 'APPLE_CLIENT_ID')) missing.push('APPLE_CLIENT_ID');
   if (!textOf(env, 'APPLE_TEAM_ID')) missing.push('APPLE_TEAM_ID');
   if (!textOf(env, 'APPLE_KEY_ID')) missing.push('APPLE_KEY_ID');
   if (!textOf(env, 'APPLE_PRIVATE_KEY')) missing.push('APPLE_PRIVATE_KEY');
@@ -217,12 +227,12 @@ export function callbackErrorRedirect(origin, message) {
   return loginErrorRedirect(origin, message);
 }
 
-function googleRedirectUri(origin) {
-  return `${origin}/api/auth/google/callback`;
+export function googleRedirectUri(origin) {
+  return `${origin}${GOOGLE_CALLBACK_PATH}`;
 }
 
-function appleRedirectUri(origin) {
-  return `${origin}/api/auth/apple/callback`;
+export function appleRedirectUri(origin) {
+  return `${origin}${APPLE_CALLBACK_PATH}`;
 }
 
 export async function startGoogleOAuth(env, request) {
@@ -262,7 +272,7 @@ export async function startAppleOAuth(env, request) {
     exp: Math.floor(Date.now() / 1000) + STATE_MAX_AGE,
   });
   const url = new URL(APPLE_AUTH);
-  url.searchParams.set('client_id', textOf(env, 'APPLE_CLIENT_ID'));
+  url.searchParams.set('client_id', appleClientId(env));
   url.searchParams.set('redirect_uri', appleRedirectUri(origin));
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('response_mode', 'form_post');
@@ -385,7 +395,7 @@ async function appleClientSecret(env) {
     iat: now,
     exp: now + 86000,
     aud: 'https://appleid.apple.com',
-    sub: textOf(env, 'APPLE_CLIENT_ID'),
+    sub: appleClientId(env),
   })));
   const signingInput = `${header}.${payload}`;
   const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, utf8(signingInput));
@@ -475,7 +485,7 @@ export async function handleAppleCallback(env, request, fetchImpl) {
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      client_id: textOf(env, 'APPLE_CLIENT_ID'),
+      client_id: appleClientId(env),
       client_secret: clientSecret,
       redirect_uri: appleRedirectUri(origin),
     }).toString(),
@@ -486,7 +496,7 @@ export async function handleAppleCallback(env, request, fetchImpl) {
   }
   let claims = decodeJwt(tokenBody.id_token);
   try {
-    claims = await verifyAppleIdToken(tokenBody.id_token, textOf(env, 'APPLE_CLIENT_ID'), fetchFn);
+    claims = await verifyAppleIdToken(tokenBody.id_token, appleClientId(env), fetchFn);
   } catch (error) {
     if (error && error.status === 400) return callbackErrorRedirect(origin, error.message);
     claims = decodeJwt(tokenBody.id_token);

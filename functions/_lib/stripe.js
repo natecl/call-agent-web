@@ -1,40 +1,97 @@
 const STRIPE_API = 'https://api.stripe.com/v1';
 
-export function requireTestSecret(secret) {
+export function stripeMode(secret) {
+  const value = String(secret || '').trim();
+  if (value.startsWith('sk_live_')) return 'live';
+  if (value.startsWith('sk_test_')) return 'test';
+  return null;
+}
+
+export function stripeModeFromEnv(env = {}) {
+  return stripeMode(env.STRIPE_SECRET_KEY);
+}
+
+export function requireStripeSecret(secret) {
   if (!secret) {
-    const err = new Error('Stripe TEST is not configured');
+    const err = new Error('Stripe is not configured');
     err.status = 503;
     throw err;
   }
-  if (secret.startsWith('sk_live_')) {
-    const err = new Error('Live Stripe keys are not allowed');
+  const mode = stripeMode(secret);
+  if (!mode) {
+    const err = new Error('Stripe secret required (sk_test_ or sk_live_)');
     err.status = 500;
     throw err;
   }
-  if (!secret.startsWith('sk_test_')) {
-    const err = new Error('Stripe TEST secret required (sk_test_)');
-    err.status = 500;
-    throw err;
-  }
+  return mode;
 }
 
-export function requireTestPublishable(key) {
+export function requireStripePublishable(key, mode) {
   if (!key) return null;
-  if (key.startsWith('pk_live_')) {
-    const err = new Error('Live Stripe keys are not allowed');
+  const value = String(key).trim();
+  if (mode === 'live' && !value.startsWith('pk_live_')) {
+    const err = new Error('Stripe live publishable key required (pk_live_)');
     err.status = 500;
     throw err;
   }
-  if (!key.startsWith('pk_test_')) {
+  if (mode === 'test' && !value.startsWith('pk_test_')) {
     const err = new Error('Stripe TEST publishable key required (pk_test_)');
     err.status = 500;
     throw err;
   }
-  return key;
+  if (!mode && !value.startsWith('pk_test_') && !value.startsWith('pk_live_')) {
+    const err = new Error('Stripe publishable key required (pk_test_ or pk_live_)');
+    err.status = 500;
+    throw err;
+  }
+  return value;
+}
+
+export function stripeView(env = {}) {
+  const secret = env && env.STRIPE_SECRET_KEY;
+  if (!secret) {
+    return {
+      mode: null,
+      configured: false,
+      stripeLive: false,
+      publishableKey: null,
+    };
+  }
+  const mode = requireStripeSecret(secret);
+  const publishableKey = requireStripePublishable(env.STRIPE_PUBLISHABLE_KEY, mode);
+  return {
+    mode,
+    configured: true,
+    stripeLive: mode === 'live',
+    publishableKey: publishableKey || null,
+  };
+}
+
+export function assertCheckoutSessionId(sessionId, mode) {
+  const id = String(sessionId || '').trim();
+  if (mode === 'live') {
+    if (!id.startsWith('cs_live_')) {
+      const err = new Error('Missing live Checkout Session');
+      err.status = 400;
+      throw err;
+    }
+    return id;
+  }
+  if (id.startsWith('cs_live_')) {
+    const err = new Error('Live Checkout Session does not match TEST Stripe keys');
+    err.status = 400;
+    throw err;
+  }
+  if (!id.startsWith('cs_test_')) {
+    const err = new Error('Missing Checkout Session');
+    err.status = 400;
+    throw err;
+  }
+  return id;
 }
 
 export async function stripeRequest(env, { method, path, form, fetchImpl }) {
-  requireTestSecret(env.STRIPE_SECRET_KEY);
+  requireStripeSecret(env.STRIPE_SECRET_KEY);
   const fetchFn = fetchImpl || fetch;
   const url = path.startsWith('http') ? path : `${STRIPE_API}/${path.replace(/^\//, '')}`;
   const headers = { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` };
@@ -76,7 +133,7 @@ function timingSafeEqualHex(a, b) {
 
 export async function verifyStripeWebhook(secret, payload, header, nowMs = Date.now()) {
   if (!secret) {
-    const err = new Error('Stripe webhook secret is not configured');
+    const err = new Error('STRIPE_WEBHOOK_SECRET is not configured');
     err.status = 503;
     throw err;
   }

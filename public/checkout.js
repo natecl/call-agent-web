@@ -1,4 +1,4 @@
-// Stripe TEST checkout. Email + password + E.164 (the user's phone, not Treena's shared bot DID). Password stays client-side unless Google/Apple session is present. Name is not collected on /account. Secret stays on Pages Functions.
+// Stripe checkout. Mode follows Pages Stripe keys (TEST or live). Email + password + E.164 (the user's phone, not Treena's shared bot DID). Password stays client-side unless Google/Apple session is present. Name is not collected on /account. Secret stays on Pages Functions.
 (function () {
   const PLANS = {
     personal: { id: 'personal', name: 'Personal', price: 20, minutes: 30, overage: '0.15' },
@@ -248,6 +248,25 @@
       .replace(/"/g, '&quot;');
   }
 
+  function applyStripeMode(cfg) {
+    const live = Boolean(cfg && (cfg.stripeLive || cfg.mode === 'live' || (cfg.live === true)));
+    document.body.setAttribute('data-stripe-mode', live ? 'live' : 'test');
+    document.querySelectorAll('[data-stripe-test-only]').forEach((el) => {
+      el.hidden = live;
+    });
+    document.querySelectorAll('[data-stripe-live-only]').forEach((el) => {
+      el.hidden = !live;
+    });
+  }
+
+  function loadStripeMode() {
+    return fetch('/api/config')
+      .then((res) => res.json())
+      .then(applyStripeMode)
+      .catch(() => applyStripeMode({ mode: 'live', stripeLive: true }));
+  }
+
+  loadStripeMode();
   const page = document.body.getAttribute('data-page');
   const planId = resolvePlanId();
   const plan = planId ? PLANS[planId] : null;
@@ -329,6 +348,7 @@
           name: result.name,
         }, sessionId);
         const billed = result.billing || {};
+        applyStripeMode(billed);
         const usage = result.usage || {};
         const billedPlan = PLANS[billed.plan];
         if (billedPlan) showPlan(billedPlan);

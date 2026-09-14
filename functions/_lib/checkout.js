@@ -1,7 +1,7 @@
 import { getPlan } from './plans.js';
 import { assertPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
-import { encodeForm, stripeRequest } from './stripe.js';
+import { assertCheckoutSessionId, encodeForm, requireStripeSecret, stripeRequest } from './stripe.js';
 import { assertName, firstNameFrom, payloadFromStripeCustomer, postAccountSync } from './sync.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,7 +25,7 @@ function customerFields({ email, name, phone, plan, retainAfterCall }) {
     'metadata[phone]': phone,
     'metadata[minutes]': String(plan.minutes),
     'metadata[retain_after_call]': retainAfterCall,
-    'metadata[source]': 'usetreena-pages-test',
+    'metadata[source]': 'usetreena-pages',
   };
 }
 
@@ -66,7 +66,7 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
   });
   const existing = listed.data && listed.data[0];
   if (!existing || !existing.id) {
-    const err = new Error('No Stripe TEST account for this email');
+    const err = new Error('No Stripe account for this email');
     err.status = 404;
     throw err;
   }
@@ -253,17 +253,8 @@ export function paidSessionView(session) {
 }
 
 export async function verifyCheckoutSession(env, sessionId, fetchImpl) {
-  const id = String(sessionId || '').trim();
-  if (id.startsWith('cs_live_')) {
-    const err = new Error('Live Checkout Sessions are not allowed');
-    err.status = 400;
-    throw err;
-  }
-  if (!id.startsWith('cs_test_')) {
-    const err = new Error('Missing Checkout Session');
-    err.status = 400;
-    throw err;
-  }
+  const mode = requireStripeSecret(env.STRIPE_SECRET_KEY);
+  const id = assertCheckoutSessionId(sessionId, mode);
   const session = await stripeRequest(env, {
     method: 'GET',
     path: `checkout/sessions/${encodeURIComponent(id)}`,

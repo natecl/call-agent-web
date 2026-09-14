@@ -39,7 +39,8 @@
   </form>
   <p class="flow-error" id="pay-error" role="alert" hidden></p>
   <a class="change-plan" href="../pricing.html">Change plan</a>
-  <p class="stub-note"><strong>Test checkout</strong> · No real charge.<br>Use test card 4242 4242 4242 4242.</p>
+  <p class="stub-note" data-stripe-live-only>You’ll be charged on Stripe Checkout. No trial.</p>
+  <p class="stub-note" data-stripe-test-only hidden><strong>Test checkout</strong> · No real charge.<br>Use test card 4242 4242 4242 4242.</p>
 </div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
   <a class="brand" href="../index.html">Treena</a>
@@ -58,7 +59,7 @@
 </dialog>
 <script src="../imessage.js?v=20260913-imessage1"></script>
 <script src="../chrome.js?v=20260912-polish"></script>
-<script src="../checkout.js"></script>
+<script src="../checkout.js?v=20260914-live1"></script>
 <script src="../motion.js?v=20260912-motion1"></script>
 </body>
 </html>

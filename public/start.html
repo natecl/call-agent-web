@@ -25,12 +25,12 @@
 <main id="main" class="page-main page-flow"><ol class="flow-steps" aria-label="Setup progress"><li class="complete"><span>1</span>Your details</li><li class="complete"><span>2</span>Review & pay</li><li class="current" aria-current="step"><span>3</span>Get started</li></ol><div class="flow-panel">
   <div id="start-pending" role="status" aria-live="polite">
     <h1>Confirming payment</h1>
-    <p class="page-lead">Checking your Stripe TEST subscription…</p>
+    <p class="page-lead">Checking your Stripe subscription…</p>
   </div>
   <div id="start-name" hidden>
     <p class="eyebrow">One more thing</p>
     <h1>What should Treena<br>call you?</h1>
-    <p class="page-lead">Treena uses your first name on the call — not the product name. Your test subscription is confirmed.</p>
+    <p class="page-lead">Treena uses your first name on the call — not the product name. <span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span></p>
     <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
     <form id="start-name-form">
       <div class="field">
@@ -43,14 +43,14 @@
       </div>
     </form>
     <p class="flow-error" id="name-error" role="alert" hidden></p>
-    <p class="stub-note">Name lives in account settings after signup. Stripe TEST subscription is active. No real charge.</p>
+    <p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
   <div id="start-ready" hidden>
     <p class="eyebrow">All set</p><h1>A little more<br>off your plate.</h1>
-    <p class="page-lead">Your test subscription is confirmed. Text Treena at +12138653024.</p>
+    <p class="page-lead"><span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span> Text Treena at +12138653024.</p>
     <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
     <p class="page-cta"><a class="button primary text-relay" href="sms:+12138653024">Text Treena</a></p>
-    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Include the business, their number if you have it, and what you’d like Treena to ask.</p></div><p class="stub-note">Name lives in account settings after signup. Stripe TEST subscription is active. No real charge.</p>
+    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Include the business, their number if you have it, and what you’d like Treena to ask.</p></div><p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
 </div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
@@ -70,7 +70,7 @@
 </dialog>
 <script src="imessage.js?v=20260913-imessage1"></script>
 <script src="chrome.js?v=20260912-polish"></script>
-<script src="checkout.js"></script>
+<script src="checkout.js?v=20260914-live1"></script>
 <script src="motion.js?v=20260912-motion1"></script>
 </body>
 </html>
