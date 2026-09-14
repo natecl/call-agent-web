@@ -1,5 +1,5 @@
 import { getPlan } from './plans.js';
-import { assertPhone } from './phone.js';
+import { assertPhone, assertUserPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
 import { assertCheckoutSessionId, encodeForm, requireStripeSecret, stripeRequest } from './stripe.js';
 import { assertName, firstNameFrom, payloadFromStripeCustomer, postAccountSync } from './sync.js';
@@ -48,26 +48,42 @@ export async function findOrCreateCustomer(env, { email, name, phone, plan, reta
   return stripeRequest(env, { method: 'POST', path: 'customers', form, fetchImpl });
 }
 
-export async function saveAccountSettings(env, { email, name, phone, planId, retainAfterCall, fetchImpl }) {
-  const plan = getPlan(planId);
-  if (!plan) {
-    const err = new Error('Choose Personal or Plus');
-    err.status = 400;
-    throw err;
-  }
+export async function saveAccountSettings(env, { email, name, phone, planId, retainAfterCall, customerId, fetchImpl }) {
   const normalizedEmail = assertEmail(email);
-  const normalizedPhone = assertPhone(phone);
+  const normalizedPhone = assertUserPhone(phone, env);
   const retain = normalizeRetain(retainAfterCall);
   const named = assertName(name);
-  const listed = await stripeRequest(env, {
-    method: 'GET',
-    path: `customers?email=${encodeURIComponent(normalizedEmail)}&limit=1`,
-    fetchImpl,
-  });
-  const existing = listed.data && listed.data[0];
+  let existing;
+  if (customerId) {
+    existing = await stripeRequest(env, {
+      method: 'GET',
+      path: `customers/${encodeURIComponent(customerId)}`,
+      fetchImpl,
+    });
+    const existingEmail = String((existing && existing.email) || '').trim().toLowerCase();
+    if (existingEmail && existingEmail !== normalizedEmail) {
+      const err = new Error('This account belongs to a different email');
+      err.status = 403;
+      throw err;
+    }
+  } else {
+    const listed = await stripeRequest(env, {
+      method: 'GET',
+      path: `customers?email=${encodeURIComponent(normalizedEmail)}&limit=1`,
+      fetchImpl,
+    });
+    existing = listed.data && listed.data[0];
+  }
   if (!existing || !existing.id) {
     const err = new Error('No Stripe account for this email');
     err.status = 404;
+    throw err;
+  }
+  const existingPlan = getPlan((existing.metadata && existing.metadata.plan) || planId);
+  const plan = getPlan(planId) || existingPlan;
+  if (!plan) {
+    const err = new Error('Choose Personal or Plus');
+    err.status = 400;
     throw err;
   }
   const customer = await stripeRequest(env, {
@@ -160,7 +176,7 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
     throw err;
   }
   const normalizedEmail = assertEmail(email);
-  const normalizedPhone = assertPhone(phone);
+  const normalizedPhone = assertUserPhone(phone, env);
   const retain = normalizeRetain(retainAfterCall);
   const trimmedName = String(name || '').trim();
   const customer = await findOrCreateCustomer(env, {

@@ -38,3 +38,20 @@ fetch('/api/config').then((res) => res.json()).then((cfg) => {
   window.TREENA_MESSAGE_URL = cfg.imessage.smsUrl;
   document.querySelectorAll('a.text-relay').forEach((a) => { a.href = cfg.imessage.smsUrl; });
 }).catch(() => {});
+
+fetch('/api/auth/me').then((res) => res.json()).then((me) => {
+  if (!me || !me.signedIn) return;
+  if (me.csrf) {
+    try { sessionStorage.setItem('treena-csrf', me.csrf); } catch (_) {}
+  }
+  const page = document.body.getAttribute('data-page');
+  if (me.hasAccount) {
+    document.querySelectorAll('nav a[href$="login.html"], nav a[href$="/login"], nav a[href="login.html"]').forEach((link) => {
+      link.textContent = 'Dashboard';
+      const base = document.body.getAttribute('data-base') || '.';
+      link.href = page === 'dashboard' ? (link.getAttribute('href') || 'dashboard.html') : `${base}/dashboard.html`;
+      if (page === 'dashboard') link.setAttribute('aria-current', 'page');
+    });
+    if (page === 'login') location.replace('/dashboard');
+  }
+}).catch(() => {});

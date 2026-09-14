@@ -11,7 +11,9 @@
     retain: 'treena-retain-after-call',
     session: 'treena-session-id',
     name: 'treena-name',
+    csrf: 'treena-csrf',
   };
+  let csrfToken = '';
   const FIRST_NAME_RE = /^[A-Za-z][A-Za-z' -]{0,31}$/;
 
   function base() {
@@ -120,15 +122,74 @@
   }
 
   async function api(path, options) {
-    const res = await fetch(path, options);
+    const headers = Object.assign({}, (options && options.headers) || {});
+    const method = String((options && options.method) || 'GET').toUpperCase();
+    if (csrfToken && method !== 'GET' && method !== 'HEAD') {
+      headers['X-Treena-CSRF'] = csrfToken;
+    }
+    const res = await fetch(path, Object.assign({ credentials: 'same-origin' }, options || {}, { headers }));
     let data = {};
     try { data = await res.json(); } catch (_) {}
+    if (data && data.csrf) {
+      csrfToken = data.csrf;
+      try { sessionStorage.setItem(KEY.csrf, data.csrf); } catch (_) {}
+    }
     if (!res.ok) {
       const err = new Error(data.error || 'Request failed');
       err.status = res.status;
       throw err;
     }
     return data;
+  }
+
+  function rememberCsrf(token) {
+    if (!token) return;
+    csrfToken = token;
+    try { sessionStorage.setItem(KEY.csrf, token); } catch (_) {}
+  }
+  try { csrfToken = sessionStorage.getItem(KEY.csrf) || ''; } catch (_) {}
+
+  function formatIsoDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function fillDate(selector, iso) {
+    const label = formatIsoDate(iso);
+    document.querySelectorAll(selector).forEach((el) => {
+      el.textContent = label || '—';
+    });
+  }
+
+  function showRow(selector, show) {
+    document.querySelectorAll(selector).forEach((el) => {
+      el.hidden = !show;
+    });
+  }
+
+  function applyBillingPeriod(billed) {
+    const start = billed && billed.periodStart;
+    const end = billed && billed.periodEnd;
+    const renews = billed && billed.renewsAt;
+    const reset = billed && billed.minutesResetAt;
+    const cancelAt = billed && billed.cancelEffectiveAt;
+    const canceling = Boolean(billed && billed.cancelAtPeriodEnd);
+    showRow('[data-period-row]', Boolean(start || end));
+    showRow('[data-renews-row]', Boolean(renews));
+    showRow('[data-reset-row]', Boolean(reset));
+    showRow('[data-cancel-row]', Boolean(canceling && cancelAt));
+    fillDate('[data-period-start]', start);
+    fillDate('[data-period-end]', end);
+    fillDate('[data-renews-at]', renews);
+    fillDate('[data-minutes-reset-at]', reset);
+    fillDate('[data-cancel-effective-at]', cancelAt);
+    const cancelBtn = document.getElementById('cancel-plan');
+    if (cancelBtn) {
+      cancelBtn.hidden = Boolean(canceling) || (billed && billed.status === 'canceled');
+      cancelBtn.disabled = false;
+    }
   }
 
   function applyOAuthSession(me) {
@@ -301,19 +362,19 @@
 
   if (page === 'start') {
     const sessionId = resolveSessionId();
-    if (!sessionId) {
-      location.replace(plan ? href('pay.html', plan.id) : href('pricing.html'));
-      return;
-    }
     (async () => {
       try {
-        const result = await api(`/api/session?session_id=${encodeURIComponent(sessionId)}`);
+        const path = sessionId
+          ? `/api/session?session_id=${encodeURIComponent(sessionId)}`
+          : '/api/session';
+        const result = await api(path);
         paidPlan = PLANS[result.plan] || plan;
         if (paidPlan) showPlan(paidPlan);
         if (result.email) fill('[data-account-email]', result.email);
         if (result.phone) fill('[data-account-phone]', result.phone);
         showRetain(result.retainAfterCall === 'on' ? 'on' : 'off');
-        storeSession(result, sessionId);
+        storeSession(result, result.sessionId || sessionId);
+        rememberCsrf(result.csrf);
         if (hasName(result)) {
           location.replace(withSession('dashboard.html', result.sessionId || sessionId, result.plan || (paidPlan && paidPlan.id)));
           return;
@@ -327,15 +388,149 @@
     })();
   }
 
+  function fillSettings(result) {
+    const settings = result.settings || {};
+    const nameInput = document.getElementById('settings-name');
+    const emailInput = document.getElementById('settings-email');
+    const phoneInput = document.getElementById('settings-phone');
+    const retainInput = document.getElementById('settings-retain');
+    if (nameInput) nameInput.value = settings.name || result.name || '';
+    if (emailInput) emailInput.value = settings.email || result.email || '';
+    if (phoneInput) phoneInput.value = settings.phone || result.phone || '';
+    if (retainInput) {
+      retainInput.checked = (settings.retainAfterCall || (result.user && result.user.retain_call_artifacts ? 'on' : 'off')) === 'on';
+    }
+  }
+
+  function bindDashboardActions(result) {
+    const manage = document.getElementById('manage-billing');
+    if (manage) {
+      manage.addEventListener('click', async () => {
+        showError('billing-error', '');
+        manage.disabled = true;
+        try {
+          const portal = await api('/api/billing/portal', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId: resolveSessionId() || undefined }),
+          });
+          if (!portal.url) throw new Error('Billing portal URL missing');
+          location.href = portal.url;
+        } catch (error) {
+          showError('billing-error', error.message || 'Could not open Stripe Customer Portal');
+          manage.disabled = false;
+        }
+      });
+    }
+    const cancelBtn = document.getElementById('cancel-plan');
+    const confirmBox = document.getElementById('cancel-confirm');
+    const confirmActions = document.getElementById('cancel-confirm-actions');
+    const confirmBtn = document.getElementById('cancel-plan-confirm');
+    const backBtn = document.getElementById('cancel-plan-back');
+    function showCancelConfirm(show) {
+      if (confirmBox) confirmBox.hidden = !show;
+      if (confirmActions) confirmActions.hidden = !show;
+      if (cancelBtn) cancelBtn.hidden = show || cancelBtn.hidden;
+    }
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        showError('billing-error', '');
+        showCancelConfirm(true);
+      });
+    }
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        showCancelConfirm(false);
+        if (cancelBtn) cancelBtn.hidden = false;
+      });
+    }
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async () => {
+        showError('billing-error', '');
+        confirmBtn.disabled = true;
+        try {
+          const canceled = await api('/api/billing/cancel', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId: resolveSessionId() || undefined }),
+          });
+          applyBillingPeriod(canceled);
+          fill('[data-billing-status]', canceled.status || 'active');
+          showCancelConfirm(false);
+          if (cancelBtn) cancelBtn.hidden = true;
+        } catch (error) {
+          showError('billing-error', error.message || 'Could not cancel plan');
+          confirmBtn.disabled = false;
+        }
+      });
+    }
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+      settingsForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        showError('settings-error', '');
+        const savedNote = document.getElementById('settings-saved');
+        if (savedNote) savedNote.hidden = true;
+        const nameInput = document.getElementById('settings-name');
+        const phoneInput = document.getElementById('settings-phone');
+        const retainInput = document.getElementById('settings-retain');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const phone = phoneInput ? normalizeE164(phoneInput.value) : '';
+        if (phoneInput) {
+          phoneInput.setCustomValidity(phone ? '' : 'Use an E.164 phone number, like +14155552671');
+        }
+        if (nameInput) {
+          nameInput.setCustomValidity(firstNameFrom(name) ? '' : 'Use a first name, like Nathan');
+        }
+        if (!settingsForm.reportValidity()) return;
+        const submit = settingsForm.querySelector('[type="submit"]');
+        if (submit) {
+          submit.disabled = true;
+          submit.textContent = 'Saving…';
+        }
+        try {
+          const saved = await api('/api/account', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: resolveSessionId() || undefined,
+              name,
+              phone,
+              plan: (result.billing && result.billing.plan) || undefined,
+              retainAfterCall: retainInput && retainInput.checked ? 'on' : 'off',
+            }),
+          });
+          storeSession({
+            sessionId: result.sessionId,
+            plan: saved.plan,
+            email: result.email,
+            phone: saved.phone,
+            retainAfterCall: saved.retainAfterCall,
+            name: saved.name,
+          }, result.sessionId);
+          fill('[data-first-name]', saved.firstName || firstNameFrom(saved.name) || 'there');
+          if (savedNote) savedNote.hidden = false;
+        } catch (error) {
+          showError('settings-error', error.message || 'Could not save settings');
+        } finally {
+          if (submit) {
+            submit.disabled = false;
+            submit.textContent = 'Save settings';
+          }
+        }
+      });
+    }
+  }
+
   if (page === 'dashboard') {
     const sessionId = resolveSessionId();
-    if (!sessionId) {
-      location.replace(plan ? href('pay.html', plan.id) : href('pricing.html'));
-      return;
-    }
     (async () => {
       try {
-        const result = await api(`/api/dashboard?session_id=${encodeURIComponent(sessionId)}`);
+        const path = sessionId
+          ? `/api/dashboard?session_id=${encodeURIComponent(sessionId)}`
+          : '/api/dashboard';
+        const result = await api(path);
+        rememberCsrf(result.csrf);
         if (result.needsName) {
           location.replace(withSession('start.html', result.sessionId || sessionId, result.billing && result.billing.plan));
           return;
@@ -345,9 +540,10 @@
           plan: result.billing && result.billing.plan,
           email: result.email,
           phone: result.phone,
-          retainAfterCall: result.user && result.user.retain_call_artifacts ? 'on' : 'off',
+          retainAfterCall: (result.settings && result.settings.retainAfterCall)
+            || (result.user && result.user.retain_call_artifacts ? 'on' : 'off'),
           name: result.name,
-        }, sessionId);
+        }, result.sessionId || sessionId);
         const billed = result.billing || {};
         applyStripeMode(billed);
         const usage = result.usage || {};
@@ -359,14 +555,17 @@
         fill('[data-call-count]', String(usage.callCount ?? 0));
         fill('[data-billing-status]', billed.status || 'active');
         fill('[data-subscription-id]', billed.subscriptionId || '—');
+        applyBillingPeriod(billed);
         if (usage.usageNote) fill('[data-usage-note]', usage.usageNote);
+        fillSettings(result);
         renderThreads(Array.isArray(result.threads) ? result.threads : []);
         renderObservability(Array.isArray(result.calls) ? result.calls : []);
+        bindDashboardActions(result);
         setHidden('dash-pending', true);
         setHidden('dash-ready', false);
       } catch (_) {
         try { sessionStorage.removeItem(KEY.session); } catch (e) {}
-        location.replace(plan ? href('pay.html', plan.id) : href('pricing.html'));
+        location.replace('/login');
       }
     })();
   }
@@ -444,6 +643,7 @@
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
+            sessionId,
             plan: (planForSave && planForSave.id) || 'personal',
             email,
             name,

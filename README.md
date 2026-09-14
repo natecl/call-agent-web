@@ -14,7 +14,7 @@ Flow: landing (TRE-22 unfrozen) → `/pricing` → `/account` (email + password 
 
 Everyone texts one shared Treena iMessage bot (`+12138653024`). The account `phone` field is the user’s own number. This website does not assign a per-user Treena DID.
 
-The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, and `/api/billing` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim Fly sync live.
+The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, `/api/billing`, `/api/billing/portal`, and `/api/billing/cancel` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim Fly sync live. Signed-in Treena accounts hitting `/` go to `/dashboard`.
 
 ### Local
 

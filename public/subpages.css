@@ -77,4 +77,8 @@
 .oauth-config-note{color:#8a4b12}
 .oauth-signed-in{color:var(--blue)}
 .subpage .page-cta .button{display:inline-flex}
-@media(max-width:620px){.dash-metrics{grid-template-columns:1fr}.dash-section{padding:20px}}
+.dash-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 0}
+.dash-section .field{margin:0 0 14px}
+.dash-section .field-check{margin:4px 0 8px}
+.dash-section .change-plan{margin:0}
+.dash-section input[readonly]{color:var(--muted);background:#f7f9fc}

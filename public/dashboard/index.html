@@ -19,7 +19,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="nav">
   <a class="brand" href="../index.html" aria-label="Treena home">Treena</a>
-  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../login.html">Log in</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
+  <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../dashboard.html" aria-current="page">Dashboard</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
   <a class="button primary text-relay" href="sms:+12138653024">Text Treena</a>
 </header>
 <main id="main" class="page-main page-dashboard">
@@ -52,10 +52,56 @@
           <div class="pay-row"><span>Connected minutes</span><strong><span data-plan-minutes>30</span> min</strong></div>
           <div class="pay-row"><span>Overage</span><strong>$<span data-plan-overage>0.15</span>/min</strong></div>
           <div class="pay-row"><span>Status</span><strong data-billing-status>active</strong></div>
-          <div class="pay-row"><span>Subscription</span><strong data-subscription-id>—</strong></div>
+          <div class="pay-row" data-period-row hidden><span>Current period</span><strong><span data-period-start>—</span> – <span data-period-end>—</span></strong></div>
+          <div class="pay-row" data-renews-row hidden><span>Renews</span><strong data-renews-at>—</strong></div>
+          <div class="pay-row" data-reset-row hidden><span>Minutes reset</span><strong data-minutes-reset-at>—</strong></div>
+          <div class="pay-row" data-cancel-row hidden><span>Cancels</span><strong data-cancel-effective-at>—</strong></div>
         </div>
-        <p class="stub-note" data-stripe-live-only>Billed on Stripe. No trial.</p>
+        <div class="dash-actions">
+          <button class="button secondary" type="button" id="manage-billing">Manage billing</button>
+          <button class="button secondary" type="button" id="cancel-plan">Cancel plan</button>
+        </div>
+        <p class="flow-error" id="billing-error" role="alert" hidden></p>
+        <p class="dash-empty" id="cancel-confirm" hidden>Cancels at the end of this billing period (<span data-cancel-effective-at>—</span>). You’ll keep access until then. No refund for the current period.</p>
+        <div class="dash-actions" id="cancel-confirm-actions" hidden>
+          <button class="button primary" type="button" id="cancel-plan-confirm">Confirm cancel</button>
+          <button class="button secondary" type="button" id="cancel-plan-back">Keep plan</button>
+        </div>
+        <p class="stub-note" data-stripe-live-only>Billed on Stripe. Card details stay in Stripe Customer Portal — never on this page.</p>
         <p class="stub-note" data-stripe-test-only hidden>No real charge. Stripe TEST only.</p>
+      </section>
+      <section class="dash-section" id="settings">
+        <h2>Account settings</h2>
+        <p class="dash-note">Name lives in account settings after signup. Phone is the number you text Treena from — not Treena’s shared iMessage bot.</p>
+        <p class="flow-error" id="settings-error" role="alert" hidden></p>
+        <p class="dash-empty" id="settings-saved" hidden>Saved.</p>
+        <form id="settings-form">
+          <div class="field">
+            <label for="settings-name">Name</label>
+            <input id="settings-name" name="name" type="text" autocomplete="name" required maxlength="80" aria-describedby="settings-name-hint">
+            <p class="field-hint" id="settings-name-hint">First name is enough. Letters, spaces, apostrophes, and hyphens.</p>
+          </div>
+          <div class="field">
+            <label for="settings-email">Email</label>
+            <input id="settings-email" name="email" type="email" autocomplete="email" readonly>
+          </div>
+          <div class="field">
+            <label for="settings-phone">Phone</label>
+            <input id="settings-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="settings-phone-hint">
+            <p class="field-hint" id="settings-phone-hint">Your number (the one you’ll text from), E.164 like +14155552671. Not Treena’s shared bot number.</p>
+          </div>
+          <div class="field field-check">
+            <label for="settings-retain">
+              <input id="settings-retain" name="retain_after_call" type="checkbox" value="on">
+              Save call audio, transcripts, and history
+            </label>
+            <p class="field-hint" id="settings-retain-hint">Off by default. Login and billing minutes still persist either way.</p>
+          </div>
+          <div class="dash-actions">
+            <button class="button primary" type="submit">Save settings</button>
+            <a class="change-plan" href="/api/auth/logout">Log out</a>
+          </div>
+        </form>
       </section>
       <section class="dash-section" id="threads">
         <h2>Threads</h2>

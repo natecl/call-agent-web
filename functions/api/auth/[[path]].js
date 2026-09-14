@@ -2,6 +2,7 @@ import { errorResponse, json } from '../../_lib/http.js';
 import {
   handleAppleCallback,
   handleGoogleCallback,
+  issueAccountSession,
   logoutCookies,
   publicOrigin,
   redirect,
@@ -24,7 +25,22 @@ export async function onRequest(context) {
     const route = parts.join('/');
 
     if (route === 'me' && method === 'GET') {
-      return json(await sessionView(env, request));
+      const view = await sessionView(env, request);
+      let cookies = [];
+      if (view.signedIn && view.email) {
+        const issued = await issueAccountSession(env, request, {
+          email: view.email,
+          provider: view.provider,
+          name: view.name,
+          phone: view.phone,
+          customerId: view.customerId,
+          hasAccount: view.hasAccount,
+        });
+        cookies = issued.cookies;
+        if (issued.csrf) view.csrf = issued.csrf;
+        view.hasAccount = issued.hasAccount;
+      }
+      return json(view, 200, { cookies });
     }
 
     if (route === 'logout' && (method === 'GET' || method === 'POST')) {
