@@ -3,6 +3,7 @@ import { errorResponse, json } from '../_lib/http.js';
 import { stripeView } from '../_lib/stripe.js';
 import { treenaIMessageView } from '../_lib/imessage.js';
 import { oauthStatus } from '../_lib/auth.js';
+import { minutePackView } from '../_lib/usage.js';
 
 export async function onRequestGet(context) {
   try {
@@ -17,7 +18,9 @@ export async function onRequestGet(context) {
       prices: {
         personal: Boolean(env.STRIPE_PRICE_PERSONAL),
         plus: Boolean(env.STRIPE_PRICE_PLUS),
+        minutePack: Boolean(env.STRIPE_PRICE_MINUTE_PACK),
       },
+      pack: minutePackView(env),
       plans: Object.values(PLANS).map((plan) => ({
         id: plan.id,
         name: plan.name,

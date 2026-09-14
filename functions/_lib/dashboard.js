@@ -2,27 +2,20 @@ import { getPlan } from './plans.js';
 import { stripeModeFromEnv, stripeRequest } from './stripe.js';
 import { firstNameFrom, getAccountDashboard } from './sync.js';
 import { verifyCheckoutSession } from './checkout.js';
-import { periodFromSubscription, unixToIso } from './billing.js';
+import { periodFromSubscription } from './billing.js';
 import { normalizeRetain } from './retain.js';
+import { usageFromAccount, usageSeedNameFromEnv } from './usage.js';
 
-export function usageFromFly(user, threads, planMinutes, billingPeriod) {
-  const includedRaw = user && user.minutes_included;
-  const minutesIncluded = Number.isFinite(Number(includedRaw))
-    ? Number(includedRaw)
-    : Number(planMinutes) || 0;
-  const usedRaw = user && user.minutes_used;
-  const minutesUsed = Number.isFinite(Number(usedRaw)) ? Number(usedRaw) : 0;
-  const list = Array.isArray(threads) ? threads : [];
-  const callCount = list.filter((thread) => thread && thread.call).length;
-  const flyReset = user && (user.minutes_reset_at || user.minutesResetAt || user.billing_period_end);
-  const minutesResetAt = unixToIso(flyReset) || (billingPeriod && billingPeriod.minutesResetAt) || null;
-  return {
-    minutesIncluded,
-    minutesUsed,
-    callCount,
-    minutesResetAt,
-    usageNote: minutesUsed === 0 ? 'Usage totals update after calls.' : null,
-  };
+export function usageFromFly(user, threads, planMinutes, billingPeriod, options = {}) {
+  return usageFromAccount({
+    user,
+    threads,
+    planMinutes,
+    billingPeriod,
+    seedName: options.seedName,
+    env: options.env,
+    complimentary: options.complimentary,
+  });
 }
 
 export async function billingView(env, sessionView, fetchImpl) {
@@ -123,6 +116,7 @@ export async function loadDashboard(env, sessionIdOrOpts, fetchImpl) {
   const threads = fly.threads || [];
   const calls = fly.calls || [];
   const settings = settingsFrom(session, fly.user);
+  const seedName = usageSeedNameFromEnv(env);
   return {
     ok: true,
     needsName,
@@ -136,7 +130,11 @@ export async function loadDashboard(env, sessionIdOrOpts, fetchImpl) {
       skipped: Boolean(fly.skipped),
       reason: fly.reason || null,
     },
-    usage: usageFromFly(fly.user, threads, session.minutes, billing),
+    usage: usageFromFly(fly.user, threads, session.minutes, billing, {
+      seedName,
+      env,
+      complimentary: Boolean(billing.complimentary),
+    }),
     billing,
     settings,
     threads,

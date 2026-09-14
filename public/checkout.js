@@ -661,6 +661,34 @@
     }
   }
 
+  function bindPackPurchase() {
+    const buy = document.getElementById('buy-pack');
+    if (!buy || buy.dataset.bound === '1') return;
+    buy.dataset.bound = '1';
+    buy.addEventListener('click', async () => {
+      showError('pack-error', '');
+      const latest = window.__treenaDashboard || {};
+      const pack = (latest.usage && latest.usage.pack) || {};
+      if (pack.canPurchase === false) {
+        showError('pack-error', pack.gatedReason || 'Cannot purchase a minute pack');
+        return;
+      }
+      buy.disabled = true;
+      try {
+        const checkout = await api('/api/billing/pack', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId: resolveSessionId() || undefined }),
+        });
+        if (!checkout.url) throw new Error('Pack Checkout URL missing');
+        location.href = checkout.url;
+      } catch (error) {
+        showError('pack-error', error.message || 'Could not start pack checkout');
+        buy.disabled = false;
+      }
+    });
+  }
+
   if (page === 'dashboard') {
     const sessionId = resolveSessionId();
     (async () => {
@@ -693,6 +721,7 @@
         fill('[data-first-name]', result.firstName || 'there');
         fill('[data-minutes-included]', String(usage.minutesIncluded ?? (billed.minutes || 0)));
         fill('[data-minutes-used]', String(usage.minutesUsed ?? 0));
+        fill('[data-minutes-remaining]', String(usage.minutesRemaining ?? 0));
         fill('[data-call-count]', String(usage.callCount ?? 0));
         fill('[data-billing-status]', billed.status || 'active');
         fill('[data-subscription-id]', billed.subscriptionId || '—');
@@ -702,6 +731,8 @@
         renderThreads(Array.isArray(result.threads) ? result.threads : []);
         renderObservability(Array.isArray(result.calls) ? result.calls : []);
         bindDashboardActions(result);
+        bindPackPurchase();
+        window.__treenaDashboard = result;
         if (window.renderTreenaDashboard) window.renderTreenaDashboard(result);
         setHidden('dash-pending', true);
         setHidden('dash-ready', false);
@@ -710,6 +741,23 @@
         location.replace('/login');
       }
     })();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const sid = resolveSessionId();
+      const path = sid
+        ? `/api/dashboard?session_id=${encodeURIComponent(sid)}`
+        : '/api/dashboard';
+      api(path).then((fresh) => {
+        window.__treenaDashboard = fresh;
+        const usage = fresh.usage || {};
+        fill('[data-minutes-remaining]', String(usage.minutesRemaining ?? 0));
+        fill('[data-minutes-used]', String(usage.minutesUsed ?? 0));
+        fill('[data-minutes-included]', String(usage.minutesIncluded ?? 0));
+        fill('[data-call-count]', String(usage.callCount ?? 0));
+        if (usage.usageNote) fill('[data-usage-note]', usage.usageNote);
+        if (window.renderTreenaDashboard) window.renderTreenaDashboard(fresh);
+      }).catch(() => {});
+    });
   }
 
   const form = document.getElementById('account-form');

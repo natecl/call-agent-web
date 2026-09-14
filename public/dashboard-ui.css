@@ -42,3 +42,11 @@
 #cancel-confirm-actions .settings-button:first-child:hover{background:#f0c7c0;border-color:#f0c7c0}
 @media(max-width:700px){.plan-dates{font-size:10px;gap:8px 12px}.settings-form-panel .dialog-actions{flex-wrap:wrap}.settings-form-panel .field input{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.settings-form-panel .field input,.settings-form-panel .field-check input[type=checkbox]{transition:none}}
+
+.cap-banner{margin:16px 0 0;padding:12px 14px;border:1px solid #4a4a4a;border-radius:10px;background:#181818;color:#d8d8d0;font-size:12px;line-height:1.5}
+#usage[data-usage-state="approaching"] .cap-banner{border-color:#8a8048;color:#e8e0c0}
+#usage[data-usage-state="at_cap"] .cap-banner{border-color:#b77b74;color:#e0b6b1}
+#usage[data-usage-state="approaching"] .meter>span{background:#e0d4a8}
+#usage[data-usage-state="at_cap"] .meter>span{background:#e0b6b1}
+.pack-panel .settings-button{margin-top:16px}
+.pack-panel [data-pack-gated]{margin-top:12px}

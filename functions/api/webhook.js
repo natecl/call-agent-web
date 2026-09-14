@@ -2,6 +2,7 @@ import { errorResponse, json } from '../_lib/http.js';
 import { getPlan } from '../_lib/plans.js';
 import { verifyStripeWebhook } from '../_lib/stripe.js';
 import { syncFromStripeEvent } from '../_lib/sync.js';
+import { isMinutePackCheckout } from '../_lib/usage.js';
 
 export async function onRequestPost(context) {
   try {
@@ -18,7 +19,7 @@ export async function onRequestPost(context) {
     }
     const type = event.type || '';
     const obj = event.data && event.data.object ? event.data.object : {};
-    if (type === 'checkout.session.completed') {
+    if (type === 'checkout.session.completed' && !isMinutePackCheckout(obj)) {
       const planId = (obj.metadata && obj.metadata.plan) || obj.client_reference_id;
       if (planId && !getPlan(planId)) {
         const err = new Error('Unknown plan on webhook');

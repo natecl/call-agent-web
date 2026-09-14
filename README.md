@@ -14,18 +14,20 @@ Flow: landing (TRE-22 unfrozen) → `/pricing` → `/account` (email + password 
 
 Everyone texts one shared Treena iMessage bot (`+12138653024`). The account `phone` field is the user’s own number. This website does not assign a per-user Treena DID.
 
-The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, `/api/billing`, `/api/billing/portal`, and `/api/billing/cancel` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim Fly sync live. Signed-in Treena accounts hitting `/` go to `/dashboard`.
+The secret key never ships in `public/`. Pages Functions at `/api/checkout`, `/api/session`, `/api/webhook`, `/api/account`, `/api/dashboard`, `/api/billing`, `/api/billing/portal`, `/api/billing/cancel`, and `/api/billing/pack` hold `STRIPE_SECRET_KEY`. After checkout/settings, they POST signed JSON to Fly `/accounts/sync` (HMAC `ACCOUNT_SYNC_SECRET`). Dashboard HMAC-GETs Fly `/accounts/dashboard?phone=` (HMAC over the E.164 phone). Fly is the sole writer of `users`. This website does not open `NEON_DATABASE_URL`. Do not claim Fly sync live. Signed-in Treena accounts hitting `/` go to `/dashboard`. Cap-locked packs: **$1.00 per 5 connected minutes**, max 12 packs (60 extra minutes), no auto-meter.
 
 ### Local
 
 1. Copy `.dev.vars.example` to `.dev.vars` and paste keys. Local default is **TEST** (`sk_test_` / `pk_test_`). Pages Production is **live** after Cap GO (`sk_live_` / `pk_live_`). Keys live on Nathan’s Mac `call-agent/.env` and Pages secrets — do not commit them.
 2. Optional: `STRIPE_PRICE_PERSONAL` / `STRIPE_PRICE_PLUS` if you created Products in the Stripe TEST dashboard (account email `nathan@usetreena.com`). If omitted, Checkout uses inline price_data for $20 / $40 monthly.
-3. Optional: `STRIPE_WEBHOOK_SECRET` for `POST /api/webhook`.
-4. Optional: `ACCOUNT_SYNC_SECRET` (same value as Fly) and `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL` for signed `POST /accounts/sync` and HMAC `GET /accounts/dashboard`.
-5. `npm install`
-6. `npm run verify`
-7. Optional live host check: `VERIFY_LIVE_ORIGIN=https://usetreena.com npm run verify` (GET `/` SHA + iMessage subhead). Unset is the default CI path.
-8. `npm run dev` then open `/pricing`.
+3. Optional: `STRIPE_PRICE_MINUTE_PACK`. If omitted, pack Checkout uses inline price_data for **$1.00 / 5 connected minutes** (max 12 packs / 60 extra minutes; no auto-meter).
+4. Optional TEST-only: `DASHBOARD_USAGE_SEED=ok|approaching|at_cap|after_pack|pack_cap`. Ignored when Stripe is live (`sk_live_`).
+5. Optional: `STRIPE_WEBHOOK_SECRET` for `POST /api/webhook`.
+6. Optional: `ACCOUNT_SYNC_SECRET` (same value as Fly) and `CALL_AGENT_SYNC_URL` or `PUBLIC_BASE_URL` for signed `POST /accounts/sync` and HMAC `GET /accounts/dashboard`.
+7. `npm install`
+8. `npm run verify`
+9. Optional live host check: `VERIFY_LIVE_ORIGIN=https://usetreena.com npm run verify` (GET `/` SHA + iMessage subhead). Unset is the default CI path.
+10. `npm run dev` then open `/pricing`.
 
 Test card: `4242 4242 4242 4242`, any future expiry, any CVC, any ZIP.
 
@@ -39,6 +41,8 @@ Set Production and Preview env (Workers & Pages → `call-agent` → Settings �
 | `STRIPE_PUBLISHABLE_KEY` | env / secret | yes (`pk_test_` or `pk_live_`, matching the secret) |
 | `STRIPE_PRICE_PERSONAL` | env | no |
 | `STRIPE_PRICE_PLUS` | env | no |
+| `STRIPE_PRICE_MINUTE_PACK` | env | no (omit → inline **$1.00** / 5 min pack) |
+| `DASHBOARD_USAGE_SEED` | env | no (TEST-only: `ok` / `approaching` / `at_cap` / `after_pack` / `pack_cap`) |
 | `STRIPE_WEBHOOK_SECRET` | secret | **unset** — `POST /api/webhook` returns 503 until ops sets `whsec_…`. Do not invent. Checkout/session still live. |
 | `ACCOUNT_SYNC_SECRET` | secret | no (same HMAC as Fly; needed to POST `/accounts/sync` and GET `/accounts/dashboard`) |
 | `CALL_AGENT_SYNC_URL` | env | no (defaults to `https://hidden-beacon-080.fly.dev/accounts/sync`) |
