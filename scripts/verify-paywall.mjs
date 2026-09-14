@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createCheckoutSession, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
 import { PLANS } from '../functions/_lib/plans.js';
-import { requireStripeSecret, stripeMode, verifyStripeWebhook } from '../functions/_lib/stripe.js';
+import { looksLikeCheckoutSessionId, requireStripeSecret, stripeMode, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import {
   ACCOUNT_SYNC_SIGNATURE_HEADER,
   DEFAULT_DASHBOARD_URL,
@@ -270,6 +270,7 @@ ok('locked plans are Personal $20 and Plus $40', PLANS.personal.amountCents === 
 
 ok('live Stripe secret is accepted', stripeMode('sk_live_nope') === 'live' && requireStripeSecret('sk_live_nope') === 'live');
 ok('test Stripe secret is accepted', requireStripeSecret('sk_test_verifier') === 'test');
+ok('junk checkout ids are not sessions', looksLikeCheckoutSessionId('null', 'test') === '' && looksLikeCheckoutSessionId('undefined') === '' && looksLikeCheckoutSessionId('cs_test_abc', 'test') === 'cs_test_abc' && looksLikeCheckoutSessionId('cs_live_abc', 'test') === '');
 
 let missingRejected = false;
 try {
@@ -1309,8 +1310,70 @@ ok('middleware leaves logged-out / alone', mwNext.status === 200);
 
 ok('Pages Functions: billing portal + cancel', existsSync(join(root, 'functions/api/billing/portal.js')) && existsSync(join(root, 'functions/api/billing/cancel.js')));
 ok('home app.js routes signed-in accounts off the landing', /hasAccount/.test(read('public/app.js')) && /\/dashboard/.test(read('public/app.js')));
+ok('home app.js ignores junk treena-session-id', /cs_\(test\|live\)_/.test(read('public/app.js')));
 ok('start name save sends sessionId', /sessionId/.test(read('public/checkout.js')) && /\/api\/billing\/portal/.test(read('public/checkout.js')) && /\/api\/billing\/cancel/.test(read('public/checkout.js')));
 ok('checkout JS sends portal CSRF header and JSON body', /X-Treena-CSRF/.test(read('public/checkout.js')) && /parsed.csrf = token/.test(read('public/checkout.js')) && /rememberCsrf\(me.csrf\)/.test(read('public/checkout.js')));
+ok('start persists only real Checkout Session ids', /validCheckoutSessionId/.test(read('public/checkout.js')) && /persistCheckoutSessionId/.test(read('public/checkout.js')) && /localStorage\.setItem\(KEY\.session/.test(read('public/checkout.js')));
+
+const persistEnv = { ...syncEnv, AUTH_SESSION_SECRET: authSecret };
+const persistPaid = {
+  id: 'cus_test_123',
+  email: 'tester@example.com',
+  name: 'Nathan Tester',
+  phone: TEST_PHONE,
+  metadata: { plan: 'personal', phone: TEST_PHONE, minutes: '30', retain_after_call: 'off' },
+};
+const previousFetchPersist = globalThis.fetch;
+globalThis.fetch = mockStripe({
+  customers: [persistPaid],
+  subscription: { id: 'sub_test_123', status: 'active' },
+  onFly() {},
+}).fetchImpl;
+try {
+  const nameContinue = await accountPost({
+    request: new Request('https://usetreena.com/api/account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({
+        sessionId: 'null',
+        name: 'Nathan Tester',
+        phone: TEST_PHONE,
+        plan: 'personal',
+        retainAfterCall: 'off',
+      }),
+    }),
+    env: persistEnv,
+  });
+  const nameContinueBody = await nameContinue.json();
+  ok('POST /api/account name Continue ignores junk session_id', nameContinue.status === 200 && nameContinueBody.ok === true && nameContinueBody.firstName === 'Nathan' && nameContinueBody.error !== 'Missing Checkout Session');
+
+  const dashCookie = await dashboardGet({
+    request: new Request('https://usetreena.com/api/dashboard?session_id=null', { headers: { Cookie: authCookie } }),
+    env: persistEnv,
+  });
+  const dashCookieBody = await dashCookie.json();
+  ok('GET /api/dashboard after pay does not require session_id', dashCookie.status === 200 && dashCookieBody.ok === true && dashCookieBody.needsName === false && dashCookieBody.firstName === 'Nathan' && dashCookieBody.error !== 'Missing Checkout Session');
+
+  const startReentry = await sessionGet({
+    request: new Request('https://usetreena.com/api/session?session_id=null', { headers: { Cookie: authCookie } }),
+    env: persistEnv,
+  });
+  const startReentryBody = await startReentry.json();
+  ok('GET /api/session re-entry uses the paid cookie', startReentry.status === 200 && startReentryBody.ok === true && startReentryBody.email === 'tester@example.com');
+
+  const portalJunk = await billingPortalPost({
+    request: new Request('https://usetreena.com/api/billing/portal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: authCookie, 'X-Treena-CSRF': csrf },
+      body: JSON.stringify({ sessionId: 'null' }),
+    }),
+    env: persistEnv,
+  });
+  const portalJunkBody = await portalJunk.json();
+  ok('paid portal ignores junk session_id', portalJunk.status === 200 && String(portalJunkBody.url).startsWith('https://billing.stripe.com/'));
+} finally {
+  globalThis.fetch = previousFetchPersist;
+}
 
 const privacy = read('public/privacy.html') + read('public/privacy/index.html');
 ok('privacy scare line is the lead', /<p class="page-lead">We don’t store anything unless you opt in\.<\/p>/.test(privacy));
@@ -1339,6 +1402,7 @@ ok('FEATURE_MAP Stripe live Cap GO', /Cap GO/.test(featureMap) && /sk_live_/.tes
 ok('FEATURE_MAP shared bot + user phone', /\+12138653024/.test(featureMap) && /Not a per-user Treena DID/.test(featureMap));
 ok('FEATURE_MAP account is email+password not name', /email \+ password required/.test(featureMap) && !/\*\*name required\*\*/.test(featureMap) && /no `#name`/.test(featureMap));
 ok('FEATURE_MAP name collected on start and settings copy', /name lives in account settings after signup/.test(featureMap) && featureMap.includes('| `/start.html` | `public/start.html` | shipped |') && /\| post-pay-name \| account \|.*\| shipped \|/.test(featureMap));
+ok('FEATURE_MAP start keeps paid session through name Continue', /paid cookie/.test(featureMap) && /junk/.test(featureMap) && /session_id/.test(featureMap));
 ok('FEATURE_MAP marks pay TEST shipped', featureMap.includes('| `/pay.html` | `public/pay.html` | shipped |'));
 ok('FEATURE_MAP records Fly account sync', featureMap.includes('| account-fly-sync |') && /ACCOUNT_SYNC_SECRET/.test(featureMap) && /accounts\/sync/.test(featureMap));
 ok('FEATURE_MAP Fly sync is sot-ready / not live', /\| account-fly-sync \| account \|.*\| sot-ready \|/.test(featureMap) && /Do not claim Fly sync live/.test(featureMap) && !/Pages deploy held/.test(featureMap) && !/not on the live Pages host/.test(featureMap) && !/not live Pages/.test(featureMap));

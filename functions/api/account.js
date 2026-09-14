@@ -44,6 +44,7 @@ export async function onRequestPost(context) {
       phone: result.phone,
       customerId: result.customerId,
       hasAccount: true,
+      checkoutSessionId: owner.view && owner.view.sessionId,
     });
     return json({ ...result, csrf: issued.csrf || owner.csrf }, 200, { cookies: issued.cookies });
   } catch (error) {

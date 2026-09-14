@@ -20,6 +20,7 @@ export async function onRequestGet(context) {
       phone: result.phone,
       customerId: result.billing && result.billing.customerId,
       hasAccount: true,
+      checkoutSessionId: result.sessionId || (owner.view && owner.view.sessionId),
     });
     return json({ ...result, csrf: issued.csrf || owner.csrf }, 200, { cookies: issued.cookies });
   } catch (error) {

@@ -1,47 +1,26 @@
-import { verifyCheckoutSession } from '../_lib/checkout.js';
 import { errorResponse, json } from '../_lib/http.js';
-import { issueAccountSession, readSession } from '../_lib/auth.js';
-import { resolveAccount } from '../_lib/stripe_account.js';
+import { issueAccountSession } from '../_lib/auth.js';
+import { requireAccountOwner } from '../_lib/identity.js';
 
 export async function onRequestGet(context) {
   try {
     const url = new URL(context.request.url);
-    const sessionId = url.searchParams.get('session_id');
-    if (sessionId) {
-      const result = await verifyCheckoutSession(context.env, sessionId);
-      const issued = await issueAccountSession(context.env, context.request, {
-        email: result.email,
-        name: result.name,
-        phone: result.phone,
-        customerId: result.customerId,
-        hasAccount: true,
-      });
-      return json({ ...result, csrf: issued.csrf }, 200, { cookies: issued.cookies });
-    }
-    const auth = await readSession(context.env, context.request);
-    if (!auth || !auth.email) {
-      const err = new Error('Sign in to continue');
-      err.status = 401;
-      throw err;
-    }
-    const account = await resolveAccount(context.env, {
-      email: auth.email,
-      name: auth.name,
-      phone: auth.phone,
+    const owner = await requireAccountOwner(context.env, context.request, {
+      sessionId: url.searchParams.get('session_id'),
     });
-    if (!account || !account.hasAccount) {
-      const err = new Error('No Treena account for this sign-in');
-      err.status = 404;
-      throw err;
-    }
+    const view = owner.view;
     const issued = await issueAccountSession(context.env, context.request, {
-      email: auth.email,
-      name: account.name,
-      phone: account.phone,
-      customerId: account.customerId,
+      email: owner.email,
+      name: view.name,
+      phone: view.phone || owner.phone,
+      customerId: owner.customerId,
       hasAccount: true,
+      checkoutSessionId: view.sessionId,
     });
-    return json({ ...account, csrf: issued.csrf || auth.csrf }, 200, { cookies: issued.cookies });
+    const sessionId = view.sessionId
+      || (issued.payload && issued.payload.checkoutSessionId)
+      || null;
+    return json({ ...view, sessionId, csrf: issued.csrf || owner.csrf }, 200, { cookies: issued.cookies });
   } catch (error) {
     return errorResponse(error);
   }
