@@ -249,13 +249,14 @@
   }
 
   function applyStripeMode(cfg) {
-    const live = Boolean(cfg && (cfg.stripeLive || cfg.mode === 'live' || (cfg.live === true)));
-    document.body.setAttribute('data-stripe-mode', live ? 'live' : 'test');
+    const mode = cfg && cfg.mode;
+    const test = mode === 'test';
+    document.body.setAttribute('data-stripe-mode', test ? 'test' : 'live');
     document.querySelectorAll('[data-stripe-test-only]').forEach((el) => {
-      el.hidden = live;
+      el.hidden = !test;
     });
     document.querySelectorAll('[data-stripe-live-only]').forEach((el) => {
-      el.hidden = !live;
+      el.hidden = test;
     });
   }
 
@@ -263,7 +264,7 @@
     return fetch('/api/config')
       .then((res) => res.json())
       .then(applyStripeMode)
-      .catch(() => applyStripeMode({ mode: 'live', stripeLive: true }));
+      .catch(() => applyStripeMode({ mode: 'live' }));
   }
 
   loadStripeMode();
