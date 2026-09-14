@@ -1,5 +1,17 @@
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+(function routeSignedInAccount() {
+  try {
+    const sid = sessionStorage.getItem('treena-session-id');
+    if (sid) {
+      location.replace(`/dashboard.html?session_id=${encodeURIComponent(sid)}`);
+      return;
+    }
+  } catch (_) {}
+  fetch('/api/auth/me').then((res) => res.json()).then((me) => {
+    if (me && me.hasAccount) location.replace('/dashboard');
+  }).catch(() => {});
+})();
 let casesInView=false, demoInView=false;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const icon = (name) => `<svg aria-hidden="true"><use href="#${name}"/></svg>`;

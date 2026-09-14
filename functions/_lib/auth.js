@@ -1,3 +1,5 @@
+import { lookupPaidAccount, dashboardPathIfAccount } from './stripe_account.js';
+
 const AUTH_COOKIE = 'treena_auth';
 const STATE_COOKIE = 'treena_oauth_state';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
@@ -180,13 +182,17 @@ export async function readSession(env, request) {
   }
 }
 
-function sessionPayload({ email, provider, sub, name }) {
+function sessionPayload({ email, provider, sub, name, customerId, phone, hasAccount, csrf }) {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: String(email || '').trim().toLowerCase(),
     provider,
     sub: String(sub || ''),
     name: String(name || '').trim() || null,
+    customerId: customerId || null,
+    phone: phone || null,
+    hasAccount: Boolean(hasAccount),
+    csrf: csrf || crypto.randomUUID(),
     iat: now,
     exp: now + SESSION_MAX_AGE,
   };
@@ -292,18 +298,66 @@ async function requireState(env, request, provider, incomingState) {
   return payload;
 }
 
-async function finishSession(env, request, { email, provider, sub, name, next }) {
+export async function issueAccountSession(env, request, {
+  email,
+  provider,
+  sub,
+  name,
+  customerId,
+  phone,
+  hasAccount,
+  fetchImpl,
+} = {}) {
+  const secret = textOf(env, 'AUTH_SESSION_SECRET');
+  if (!secret || !email) return { cookies: [], csrf: null, hasAccount: false };
+  const origin = publicOrigin(request, env);
+  const existing = request ? await readSession(env, request) : null;
+  let accountHas = Boolean(hasAccount);
+  let resolvedCustomer = customerId || (existing && existing.customerId) || null;
+  let resolvedPhone = phone || (existing && existing.phone) || null;
+  let resolvedName = name || (existing && existing.name) || null;
+  if (hasAccount == null) {
+    const account = await lookupPaidAccount(env, email, fetchImpl);
+    accountHas = Boolean(account && account.hasAccount);
+    if (account) {
+      resolvedCustomer = account.customerId || resolvedCustomer;
+      resolvedPhone = account.phone || resolvedPhone;
+      resolvedName = account.name || resolvedName;
+    }
+  }
+  const payload = sessionPayload({
+    email,
+    provider: provider || (existing && existing.provider) || 'stripe',
+    sub: sub || (existing && existing.sub) || resolvedCustomer || '',
+    name: resolvedName,
+    customerId: resolvedCustomer,
+    phone: resolvedPhone,
+    hasAccount: accountHas,
+    csrf: (existing && existing.csrf) || crypto.randomUUID(),
+  });
+  const token = await signPayload(secret, payload);
+  return { cookies: sessionCookies(origin, env, token, ''), csrf: payload.csrf, hasAccount: payload.hasAccount, payload };
+}
+
+async function finishSession(env, request, { email, provider, sub, name, next, fetchImpl }) {
   const origin = publicOrigin(request, env);
   if (!email) throw fail('That sign-in did not return an email', 400);
-  const token = await signPayload(textOf(env, 'AUTH_SESSION_SECRET'), sessionPayload({
+  const account = await lookupPaidAccount(env, email, fetchImpl);
+  const hasAccount = Boolean(account && account.hasAccount);
+  const path = dashboardPathIfAccount(safeNextPath(next), hasAccount);
+  const issued = await issueAccountSession(env, request, {
     email,
     provider,
     sub,
-    name,
-  }));
-  const cookies = sessionCookies(origin, env, token, '');
+    name: name || (account && account.name),
+    customerId: account && account.customerId,
+    phone: account && account.phone,
+    hasAccount,
+    fetchImpl,
+  });
+  const cookies = issued.cookies.slice();
   cookies.push(clearCookieHeader(STATE_COOKIE, { secure: origin.startsWith('https:') }));
-  return redirect(`${origin}${safeNextPath(next)}`, cookies);
+  return redirect(`${origin}${path}`, cookies);
 }
 
 export async function handleGoogleCallback(env, request, fetchImpl) {
@@ -349,6 +403,7 @@ export async function handleGoogleCallback(env, request, fetchImpl) {
       sub: user.sub,
       name: user.name || user.given_name,
       next: statePayload.next,
+      fetchImpl,
     });
   } catch (error) {
     return callbackErrorRedirect(origin, error.message || 'Google sign-in failed');
@@ -510,23 +565,41 @@ export async function handleAppleCallback(env, request, fetchImpl) {
       sub: claims.sub,
       name,
       next: statePayload.next,
+      fetchImpl,
     });
   } catch (error) {
     return callbackErrorRedirect(origin, error.message || 'Apple sign-in failed');
   }
 }
 
-export async function sessionView(env, request) {
+export async function sessionView(env, request, fetchImpl) {
   const session = await readSession(env, request);
   if (!session || !session.email) {
-    return { ok: true, signedIn: false, oauth: oauthStatus(env) };
+    return { ok: true, signedIn: false, hasAccount: false, csrf: null, oauth: oauthStatus(env) };
+  }
+  let hasAccount = Boolean(session.hasAccount);
+  let customerId = session.customerId || null;
+  let phone = session.phone || null;
+  let name = session.name || null;
+  if (!hasAccount && env.STRIPE_SECRET_KEY) {
+    const account = await lookupPaidAccount(env, session.email, fetchImpl);
+    if (account && account.hasAccount) {
+      hasAccount = true;
+      customerId = account.customerId || customerId;
+      phone = account.phone || phone;
+      name = account.name || name;
+    }
   }
   return {
     ok: true,
     signedIn: true,
+    hasAccount,
     email: session.email,
     provider: session.provider,
-    name: session.name,
+    name,
+    phone,
+    customerId,
+    csrf: session.csrf || null,
     oauth: oauthStatus(env),
   };
 }

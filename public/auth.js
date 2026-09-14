@@ -62,6 +62,10 @@
     .then((res) => res.json())
     .then((me) => {
       if (!me || !me.signedIn) return;
+      if (me.hasAccount) {
+        location.replace('/dashboard');
+        return;
+      }
       const email = document.getElementById('email');
       if (email && me.email) email.value = me.email;
       const passwordField = document.getElementById('password-field') || document.getElementById('password')?.closest('.field');
