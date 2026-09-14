@@ -14,7 +14,7 @@ Status words: **shipped**, **sot-ready**, **not-started**.
 
 ## TRE-22 home
 
-Home is unfrozen. Pixel restyle from `recover/treena-ui-redesign` is **UI-only**. Keep “Your phone call agent, right in iMessage.” Header Log in + Text Treena (`sms:+12138653024`) stay.
+Home is unfrozen. Pixel restyle from `recover/treena-ui-redesign` is **UI-only**. Keep “Your phone call agent, right in iMessage.” Header **Get started** then **Log in**. Hero primary is **Text Treena** (`sms:+12138653024`). Live `/` SHA matches git (9395 B) — see [`docs/FEATURE_MAP.md`](docs/FEATURE_MAP.md) wave 2 #17–#24. Dashboard stays **sot-ready**.
 
 ## Treena UI redesign
 
