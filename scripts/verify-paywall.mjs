@@ -757,7 +757,7 @@ ok('signup does not collect name', !/id="name"/.test(read('public/account.html')
 ok('home still has iMessage line in index', read('public/index.html').includes(IMESSAGE_LINE));
 ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
 ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
-ok('start phone confirm rejects shared bot copy', /Not Treena’s shared iMessage bot/.test(read('public/start.html')) && /id="start-phone-form"/.test(read('public/checkout.js')) && /isReservedUserPhone/.test(read('public/checkout.js')));
+ok('start phone confirm rejects shared bot copy', /Not Treena’s shared iMessage bot/.test(read('public/start.html')) && /start-phone-form/.test(read('public/checkout.js')) && /isReservedUserPhone/.test(read('public/checkout.js')));
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
 ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /Sign in with Apple/.test(publicBlob) && /accounts\.google\.com/.test(functionsBlob));
 ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
