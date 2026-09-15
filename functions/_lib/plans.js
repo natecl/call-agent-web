@@ -24,3 +24,15 @@ export const PLANS = {
 export function getPlan(planId) {
   return PLANS[planId] || null;
 }
+
+/** Cap lock (Nathan): Personal $20 → Plus charges only this delta today. Recurring becomes Plus $40. */
+export const PERSONAL_TO_PLUS_KIND = 'personal_to_plus';
+export const PERSONAL_TO_PLUS_DELTA_CENTS = PLANS.plus.amountCents - PLANS.personal.amountCents;
+
+export function isPersonalToPlusCheckout(obj) {
+  if (!obj) return false;
+  const metadata = obj.metadata || {};
+  const kind = metadata.kind || obj.client_reference_id;
+  const planId = metadata.plan || (kind === PERSONAL_TO_PLUS_KIND ? 'plus' : null);
+  return kind === PERSONAL_TO_PLUS_KIND && planId === 'plus';
+}

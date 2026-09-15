@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createCheckoutSession, createMinutePackCheckout, minutePackCheckoutForm, paidSessionView, saveAccountSettings, verifyCheckoutSession } from '../functions/_lib/checkout.js';
-import { PLANS } from '../functions/_lib/plans.js';
+import { PLANS, PERSONAL_TO_PLUS_DELTA_CENTS, PERSONAL_TO_PLUS_KIND } from '../functions/_lib/plans.js';
 import { looksLikeCheckoutSessionId, requireStripeSecret, stripeMode, verifyStripeWebhook } from '../functions/_lib/stripe.js';
 import {
   ACCOUNT_SYNC_SIGNATURE_HEADER,
@@ -84,9 +84,10 @@ function customerFromForm(form, id = 'cus_test_123') {
   };
 }
 
-function mockStripe({ customers = [], session, subscription, subscriptions, dashboard, onCheckout, onCustomer, onFly, onDashboard, flyStatus = 200, flyFailTimes = 0, live = false } = {}) {
+function mockStripe({ customers = [], session, subscription, subscriptions, dashboard, onCheckout, onCustomer, onFly, onDashboard, onSubscription, flyStatus = 200, flyFailTimes = 0, live = false } = {}) {
   const calls = [];
   let flyAttempts = 0;
+  let currentSubscription = subscription;
   const checkoutId = live ? 'cs_live_abc' : 'cs_test_abc';
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url, method: init.method || 'GET', body: init.body || '', headers: init.headers || {} });
@@ -107,7 +108,17 @@ function mockStripe({ customers = [], session, subscription, subscriptions, dash
       const form = new URLSearchParams(String(init.body || ''));
       if (onCustomer) onCustomer(form, 'update');
       const existing = customers[0] && customers[0].id ? customers[0].id : 'cus_test_123';
-      return jsonResponse(customerFromForm(form, existing));
+      const updated = customerFromForm(form, existing);
+      if (customers[0]) {
+        const mergedMeta = {
+          ...(customers[0].metadata || {}),
+          ...updated.metadata,
+        };
+        Object.assign(customers[0], updated, { id: existing });
+        customers[0].metadata = mergedMeta;
+        return jsonResponse(customers[0]);
+      }
+      return jsonResponse(updated);
     }
     if (url.includes('/v1/customers/') && (init.method || 'GET') === 'GET') {
       const existing = customers[0] || {
@@ -148,7 +159,7 @@ function mockStripe({ customers = [], session, subscription, subscriptions, dash
     if (url.includes('/v1/subscriptions?') || /\/v1\/subscriptions\?/.test(url)) {
       if (Array.isArray(subscriptions)) return jsonResponse({ data: subscriptions });
       return jsonResponse({
-        data: [subscription || {
+        data: [currentSubscription || {
           id: 'sub_test_123',
           status: 'active',
           current_period_start: 1789000000,
@@ -158,22 +169,30 @@ function mockStripe({ customers = [], session, subscription, subscriptions, dash
     }
     if (url.includes('/v1/subscriptions/') && init.method === 'POST') {
       const form = new URLSearchParams(String(init.body || ''));
-      const existing = subscription || {
+      if (onSubscription) onSubscription(form);
+      const existing = currentSubscription || subscription || {
         id: 'sub_test_123',
         status: 'active',
         current_period_start: 1789000000,
         current_period_end: 1791678400,
       };
-      return jsonResponse({
+      currentSubscription = {
         ...existing,
         cancel_at_period_end: form.get('cancel_at_period_end') === 'true',
         cancel_at: form.get('cancel_at_period_end') === 'true'
           ? (existing.current_period_end || 1791678400)
           : null,
-      });
+        metadata: {
+          ...(existing.metadata || {}),
+          plan: form.get('metadata[plan]') || (existing.metadata && existing.metadata.plan),
+          minutes: form.get('metadata[minutes]') || (existing.metadata && existing.metadata.minutes),
+          overage: form.get('metadata[overage]') || (existing.metadata && existing.metadata.overage),
+        },
+      };
+      return jsonResponse(currentSubscription);
     }
     if (url.includes('/v1/subscriptions/') && (init.method || 'GET') === 'GET') {
-      return jsonResponse(subscription || {
+      return jsonResponse(currentSubscription || {
         id: 'sub_test_123',
         status: 'active',
       });
@@ -340,6 +359,54 @@ await createCheckoutSession(testEnv, {
 });
 ok('plus unit amount is 4000', checkoutForm.get('line_items[0][price_data][unit_amount]') === '4000');
 
+const personalPlusCustomer = {
+  id: 'cus_test_123',
+  email: 'tester@example.com',
+  name: 'Nathan Tester',
+  phone: '+14155552671',
+  metadata: {
+    plan: 'personal',
+    phone: '+14155552671',
+    minutes: '30',
+    retain_after_call: 'off',
+  },
+};
+const personalPlusSub = {
+  id: 'sub_test_123',
+  status: 'active',
+  metadata: { plan: 'personal', minutes: '30' },
+  items: { data: [{ id: 'si_personal_1' }] },
+  current_period_start: 1789000000,
+  current_period_end: 1791678400,
+};
+let upgradeForm;
+const upgradeMock = mockStripe({
+  customers: [personalPlusCustomer],
+  subscription: personalPlusSub,
+  subscriptions: [personalPlusSub],
+  onCheckout(form) { upgradeForm = form; },
+});
+const upgradedCheckout = await createCheckoutSession(testEnv, {
+  origin: 'https://usetreena.com',
+  planId: 'plus',
+  email: 'tester@example.com',
+  name: 'Nathan Tester',
+  phone: '+14155552671',
+  fetchImpl: upgradeMock.fetchImpl,
+});
+ok('Personal to Plus checkout charges $20 delta today', upgradeForm.get('mode') === 'payment'
+  && upgradeForm.get('line_items[0][price_data][unit_amount]') === String(PERSONAL_TO_PLUS_DELTA_CENTS)
+  && upgradeForm.get('metadata[kind]') === PERSONAL_TO_PLUS_KIND
+  && upgradeForm.get('metadata[plan]') === 'plus'
+  && !upgradeForm.has('line_items[0][price]')
+  && upgradedCheckout.dueTodayCents === 2000
+  && upgradedCheckout.recurringAmountCents === 4000
+  && upgradedCheckout.plan === 'plus');
+ok('Personal to Plus checkout is not a new $40 Plus subscription', upgradeForm.get('line_items[0][price_data][unit_amount]') !== '4000'
+  && upgradeForm.get('mode') !== 'subscription'
+  && /session_id=\{CHECKOUT_SESSION_ID\}/.test(upgradeForm.get('success_url') || '')
+  && /plan=plus/.test(upgradeForm.get('success_url') || ''));
+
 const priced = mockStripe({
   onCheckout(form) { checkoutForm = form; },
 });
@@ -371,6 +438,22 @@ const paid = paidSessionView({
   subscription: 'sub_test_123',
 });
 ok('paid session unlocks start', paid.ok && paid.plan === 'plus');
+
+const upgradePaidView = paidSessionView({
+  id: 'cs_test_abc',
+  status: 'complete',
+  payment_status: 'paid',
+  mode: 'payment',
+  client_reference_id: PERSONAL_TO_PLUS_KIND,
+  metadata: {
+    kind: PERSONAL_TO_PLUS_KIND,
+    plan: 'plus',
+    email: 'tester@example.com',
+    phone: '+14155552671',
+  },
+  customer: 'cus_test_123',
+});
+ok('paid Personal to Plus session is Plus not Personal', upgradePaidView.ok && upgradePaidView.plan === 'plus' && upgradePaidView.minutes === 90);
 
 let unpaid = false;
 try {
@@ -914,6 +997,120 @@ ok('dashboard pack purchase is $1.00 / 5 min with 12-pack cap', /id="minute-pack
 ok('dashboard Plan & usage has no Your current plan module', !/Your current plan/.test(dashboardHtml) && !/Minutes reset /.test(dashboardHtml) && /id="usage"/.test(dashboardHtml) && /id="minute-pack"/.test(dashboardHtml));
 ok('dashboard Personal upgrade is Plus paywall not marketing', /data-upgrade-plan/.test(dashboardHtml) && /Upgrade plan/.test(dashboardHtml) && /pay\.html\?plan=plus/.test(dashboardHtml) && !/View plans/.test(dashboardHtml) && !/href="(?:\.\.\/)?pricing\.html"/.test(dashboardHtml));
 ok('signed-in Personal can open Plus paywall', /canUpgradeToPlus/.test(read('public/checkout.js')) && /plusUpgrade/.test(read('public/checkout.js')) && /plan === 'personal'/.test(read('public/checkout.js')) && /pay\.html\?plan=plus/.test(read('public/checkout.js') + dashboardHtml));
+ok('pay page Personal to Plus shows Plus $40 going forward and $20 today', /data-due-today-row/.test(read('public/pay.html') + read('public/pay/index.html')) && /dueToday: 20/.test(read('public/checkout.js')) && /upgradeDelta/.test(read('public/checkout.js')) && /me\.plan === 'personal'/.test(read('public/checkout.js')));
+
+const upgradeVerifyCustomer = {
+  ...tre20Customer,
+  email: 'tester@example.com',
+  metadata: { ...tre20Customer.metadata },
+};
+const upgradeVerifySub = {
+  id: 'sub_test_123',
+  status: 'active',
+  metadata: { plan: 'personal', minutes: '30' },
+  items: { data: [{ id: 'si_personal_1' }] },
+  current_period_start: 1789000000,
+  current_period_end: 1791678400,
+};
+const upgradePaidSession = {
+  id: 'cs_test_abc',
+  status: 'complete',
+  payment_status: 'paid',
+  mode: 'payment',
+  client_reference_id: PERSONAL_TO_PLUS_KIND,
+  customer: 'cus_test_123',
+  metadata: {
+    kind: PERSONAL_TO_PLUS_KIND,
+    plan: 'plus',
+    from_plan: 'personal',
+    upgrade_delta_cents: String(PERSONAL_TO_PLUS_DELTA_CENTS),
+    minutes: '90',
+    email: 'tester@example.com',
+    phone: TEST_PHONE,
+    retain_after_call: 'off',
+    subscription: 'sub_test_123',
+  },
+};
+let switchedSubForm;
+const upgradeVerifyMock = mockStripe({
+  customers: [upgradeVerifyCustomer],
+  subscription: upgradeVerifySub,
+  subscriptions: [upgradeVerifySub],
+  session: upgradePaidSession,
+  onSubscription(form) { switchedSubForm = form; },
+});
+const upgradeVerified = await verifyCheckoutSession(testEnv, 'cs_test_abc', upgradeVerifyMock.fetchImpl);
+ok('Personal to Plus verify switches subscription to Plus $40', upgradeVerified.ok
+  && upgradeVerified.plan === 'plus'
+  && upgradeVerified.minutes === 90
+  && switchedSubForm.get('proration_behavior') === 'none'
+  && switchedSubForm.get('items[0][price_data][unit_amount]') === '4000'
+  && switchedSubForm.get('metadata[plan]') === 'plus'
+  && upgradeVerifyCustomer.metadata.plan === 'plus');
+ok('Personal to Plus verify does not invent Stripe proration', switchedSubForm.get('proration_behavior') === 'none'
+  && !switchedSubForm.has('proration_behavior_mode')
+  && switchedSubForm.get('items[0][price_data][unit_amount]') !== '2000');
+
+const dashUpgradeCustomer = {
+  ...tre20Customer,
+  email: 'tester@example.com',
+  metadata: { ...tre20Customer.metadata },
+};
+const dashUpgradeMock = mockStripe({
+  customers: [dashUpgradeCustomer],
+  subscription: { ...upgradeVerifySub, items: { data: [{ id: 'si_personal_1' }] } },
+  subscriptions: [{ ...upgradeVerifySub, items: { data: [{ id: 'si_personal_1' }] } }],
+  session: upgradePaidSession,
+});
+const upgradedDash = await loadDashboard(testEnv, 'cs_test_abc', dashUpgradeMock.fetchImpl);
+ok('post-upgrade dashboard plan is Plus $40', upgradedDash.ok
+  && upgradedDash.billing.plan === 'plus'
+  && upgradedDash.billing.planName === 'Plus'
+  && upgradedDash.billing.amountCents === 4000
+  && upgradedDash.billing.minutes === 90);
+
+const upgradeWebhookCustomer = {
+  ...tre20Customer,
+  email: 'tester@example.com',
+  metadata: { ...tre20Customer.metadata },
+};
+const upgradeWebhookPayload = JSON.stringify({
+  type: 'checkout.session.completed',
+  created: 1789200000,
+  data: { object: { ...upgradePaidSession } },
+});
+const upgradeWebhookTs = Math.floor(Date.now() / 1000);
+const upgradeWebhookSig = createHmac('sha256', webhookSecret).update(`${upgradeWebhookTs}.${upgradeWebhookPayload}`).digest('hex');
+let upgradeFlyBody;
+const previousFetchUpgrade = globalThis.fetch;
+globalThis.fetch = mockStripe({
+  customers: [upgradeWebhookCustomer],
+  subscription: { ...upgradeVerifySub, items: { data: [{ id: 'si_personal_1' }] } },
+  subscriptions: [{ ...upgradeVerifySub, items: { data: [{ id: 'si_personal_1' }] } }],
+  onFly(post) { upgradeFlyBody = post.body; },
+}).fetchImpl;
+try {
+  const upgradeWebhookRes = await webhookPost({
+    request: new Request('https://usetreena.com/api/webhook', {
+      method: 'POST',
+      headers: { 'Stripe-Signature': `t=${upgradeWebhookTs},v1=${upgradeWebhookSig}` },
+      body: upgradeWebhookPayload,
+    }),
+    env: {
+      STRIPE_WEBHOOK_SECRET: webhookSecret,
+      STRIPE_SECRET_KEY: 'sk_test_verifier',
+      ACCOUNT_SYNC_SECRET: 'sync-secret-verify',
+    },
+  });
+  const upgradeWebhookBody = await upgradeWebhookRes.json();
+  ok('Personal to Plus webhook switches then syncs Plus', upgradeWebhookRes.status === 200
+    && upgradeWebhookBody.received === true
+    && upgradeWebhookCustomer.metadata.plan === 'plus'
+    && JSON.parse(upgradeFlyBody).plan === 'plus'
+    && JSON.parse(upgradeFlyBody).minutes_included === 90);
+} finally {
+  globalThis.fetch = previousFetchUpgrade;
+}
 ok('start plan-echo matches card gray not page black', /\.subpage \.plan-echo\{background:var\(--treena-surface\)/.test(read('public/treena-theme.css')) && !/\.subpage \.plan-echo\{background:var\(--treena-bg\)/.test(read('public/treena-theme.css')));
 ok('dashboard does not auto-meter after included cap', !/Estimated metered charges/.test(dashboardHtml) && !/Additional connected minutes/.test(dashboardHtml) && /\/api\/billing\/pack/.test(read('public/checkout.js')));
 ok('dashboard billing period + portal + cancel', /data-period-end/.test(dashboardHtml) && /id="manage-billing"/.test(dashboardHtml) && /id="cancel-plan"/.test(dashboardHtml) && /Stripe Customer Portal/.test(dashboardHtml));
@@ -1568,7 +1765,7 @@ ok('FEATURE_MAP start is post-pay name, phone confirm, how to text, dashboard', 
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
 ok('FEATURE_MAP records billing period / portal / cancel / settings', featureMap.includes('| dashboard-billing-period |') && featureMap.includes('| dashboard-billing-portal |') && featureMap.includes('| dashboard-cancel-plan |') && featureMap.includes('| dashboard-account-settings |') && featureMap.includes('| dashboard-retain-persist |') && featureMap.includes('| logged-in-home-route |'));
 ok('FEATURE_MAP records dashboard remaining + locked minute packs', featureMap.includes('| dashboard-usage |') && featureMap.includes('| dashboard-minute-pack |') && /\$1\.00 per 5 connected minutes/.test(featureMap) && /12 packs/.test(featureMap) && /No auto-meter/.test(featureMap) && /POST \/api\/billing\/pack/.test(featureMap) && /price is locked/.test(featureMap) && !/Blocked on pack price/.test(featureMap));
-ok('FEATURE_MAP records dashboard Personal upgrade to Plus paywall', featureMap.includes('| dashboard-upgrade-plan |') && /Upgrade plan/.test(featureMap) && /pay\.html\?plan=plus/.test(featureMap) && /Plus hides the CTA/.test(featureMap));
+ok('FEATURE_MAP records dashboard Personal upgrade to Plus paywall', featureMap.includes('| dashboard-upgrade-plan |') && /Upgrade plan/.test(featureMap) && /pay\.html\?plan=plus/.test(featureMap) && /Plus hides the CTA/.test(featureMap) && /\$20 today/.test(featureMap) && /Plus \$40/.test(featureMap) && /proration_behavior/.test(featureMap) && /2000/.test(featureMap));
 ok('FEATURE_MAP OAuth advances past details to Review & pay', /advances to Review & pay/.test(featureMap) && /continuePathAfterIdentity/.test(featureMap));
 ok('FEATURE_MAP complimentary grant is env-gated', featureMap.includes('| dashboard-complimentary-grant |') && /COMPLIMENTARY_ENTITLEMENT_EMAILS/.test(featureMap) && /no Stripe charge/.test(featureMap) && /no subscription/.test(featureMap));
 ok('FEATURE_MAP logged-in accounts leave the landing', /routed to `\/dashboard`/.test(featureMap) && /not the landing/.test(featureMap));

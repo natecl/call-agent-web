@@ -1,5 +1,6 @@
+import { applyPaidPersonalToPlusUpgrade } from '../_lib/checkout.js';
 import { errorResponse, json } from '../_lib/http.js';
-import { getPlan } from '../_lib/plans.js';
+import { getPlan, isPersonalToPlusCheckout } from '../_lib/plans.js';
 import { verifyStripeWebhook } from '../_lib/stripe.js';
 import { syncFromStripeEvent } from '../_lib/sync.js';
 import { isMinutePackCheckout } from '../_lib/usage.js';
@@ -19,9 +20,12 @@ export async function onRequestPost(context) {
     }
     const type = event.type || '';
     const obj = event.data && event.data.object ? event.data.object : {};
+    if (type === 'checkout.session.completed' && isPersonalToPlusCheckout(obj)) {
+      await applyPaidPersonalToPlusUpgrade(context.env, obj);
+    }
     if (type === 'checkout.session.completed' && !isMinutePackCheckout(obj)) {
       const planId = (obj.metadata && obj.metadata.plan) || obj.client_reference_id;
-      if (planId && !getPlan(planId)) {
+      if (planId && !getPlan(planId) && !isPersonalToPlusCheckout(obj)) {
         const err = new Error('Unknown plan on webhook');
         err.status = 400;
         throw err;

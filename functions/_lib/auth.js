@@ -604,21 +604,22 @@ export async function sessionView(env, request, fetchImpl) {
   let customerId = session.customerId || null;
   let phone = session.phone || null;
   let name = session.name || null;
-  if (!hasAccount || (complimentary && !customerId)) {
-    const account = await resolveAccount(env, { email: session.email, name, phone }, fetchImpl);
-    if (account && account.hasAccount) {
-      hasAccount = true;
-      complimentary = Boolean(account.complimentary) || complimentary;
-      customerId = account.customerId || customerId;
-      phone = account.phone || phone;
-      name = account.name || name;
-    }
+  let plan = null;
+  const account = await resolveAccount(env, { email: session.email, name, phone }, fetchImpl);
+  if (account && account.hasAccount) {
+    hasAccount = true;
+    complimentary = Boolean(account.complimentary) || complimentary;
+    customerId = account.customerId || customerId;
+    phone = account.phone || phone;
+    name = account.name || name;
+    plan = account.plan || null;
   }
   return {
     ok: true,
     signedIn: true,
     hasAccount,
     complimentary,
+    plan,
     email: session.email,
     provider: session.provider,
     name,

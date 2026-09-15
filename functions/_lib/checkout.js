@@ -1,7 +1,8 @@
-import { getPlan } from './plans.js';
+import { getPlan, PERSONAL_TO_PLUS_DELTA_CENTS, PERSONAL_TO_PLUS_KIND, isPersonalToPlusCheckout } from './plans.js';
 import { assertPhone, assertUserPhone } from './phone.js';
 import { normalizeRetain } from './retain.js';
 import { assertCheckoutSessionId, encodeForm, requireStripeSecret, stripeRequest } from './stripe.js';
+import { findCustomerByEmail, findSubscriptionForCustomer } from './stripe_account.js';
 import { assertName, firstNameFrom, payloadFromStripeCustomer, postAccountSync } from './sync.js';
 import { MINUTE_PACK_KIND, PACK_AMOUNT_CENTS, PACK_MAX_MINUTES, PACK_MINUTES, PACK_PRODUCT_DESCRIPTION, PACK_PRODUCT_NAME, MINUTE_PACK_PRICE_ENV, minutePackView } from './usage.js';
 
@@ -133,6 +134,226 @@ export async function saveAccountSettings(env, { email, name, phone, planId, ret
   };
 }
 
+function planFromCustomerAndSubscription(customer, subscription) {
+  const meta = (customer && customer.metadata) || {};
+  const subMeta = (subscription && subscription.metadata) || {};
+  return getPlan(meta.plan || subMeta.plan);
+}
+
+function isActivePaidSubscription(subscription) {
+  const status = String((subscription && subscription.status) || '').toLowerCase();
+  if (!subscription || !subscription.id || !status) return false;
+  if (status === 'incomplete_expired' || status === 'canceled' || status === 'incomplete') return false;
+  return true;
+}
+
+function firstSubscriptionItemId(subscription) {
+  const items = subscription && subscription.items && Array.isArray(subscription.items.data)
+    ? subscription.items.data
+    : [];
+  return items[0] && items[0].id ? String(items[0].id) : '';
+}
+
+export function isPersonalToPlusUpgrade(plan, customer, subscription) {
+  return Boolean(
+    plan
+    && plan.id === 'plus'
+    && customer
+    && customer.id
+    && isActivePaidSubscription(subscription)
+    && planFromCustomerAndSubscription(customer, subscription)
+    && planFromCustomerAndSubscription(customer, subscription).id === 'personal',
+  );
+}
+
+export function personalToPlusCheckoutForm({
+  origin,
+  email,
+  name,
+  phone,
+  retainAfterCall,
+  customerId,
+  subscriptionId,
+}) {
+  const plus = getPlan('plus');
+  const fields = {
+    mode: 'payment',
+    customer: customerId,
+    client_reference_id: PERSONAL_TO_PLUS_KIND,
+    success_url: `${origin}/dashboard.html?session_id={CHECKOUT_SESSION_ID}&plan=plus`,
+    cancel_url: `${origin}/pay.html?plan=plus`,
+    'payment_method_types[0]': 'card',
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'usd',
+    'line_items[0][price_data][unit_amount]': String(PERSONAL_TO_PLUS_DELTA_CENTS),
+    'line_items[0][price_data][product_data][name]': 'Treena Plus upgrade',
+    'line_items[0][price_data][product_data][description]': 'Personal to Plus · $20 today · then $40/mo',
+    'metadata[kind]': PERSONAL_TO_PLUS_KIND,
+    'metadata[plan]': plus.id,
+    'metadata[from_plan]': 'personal',
+    'metadata[upgrade_delta_cents]': String(PERSONAL_TO_PLUS_DELTA_CENTS),
+    'metadata[minutes]': String(plus.minutes),
+    'metadata[email]': email,
+    'metadata[name]': name || undefined,
+    'metadata[phone]': phone,
+    'metadata[retain_after_call]': retainAfterCall,
+    'metadata[subscription]': subscriptionId,
+  };
+  return encodeForm(fields);
+}
+
+function plusRecurringFields(env, itemId) {
+  const plus = getPlan('plus');
+  const fields = {
+    proration_behavior: 'none',
+    'metadata[plan]': plus.id,
+    'metadata[minutes]': String(plus.minutes),
+    'metadata[overage]': plus.overage,
+  };
+  if (itemId) fields['items[0][id]'] = itemId;
+  const priceId = String((env && env[plus.priceEnv]) || '').trim();
+  if (priceId) {
+    fields['items[0][price]'] = priceId;
+  } else {
+    fields['items[0][price_data][currency]'] = 'usd';
+    fields['items[0][price_data][unit_amount]'] = String(plus.amountCents);
+    fields['items[0][price_data][recurring][interval]'] = 'month';
+    fields['items[0][price_data][product_data][name]'] = plus.productName;
+    fields['items[0][price_data][product_data][description]'] = plus.productDescription;
+  }
+  return fields;
+}
+
+export async function switchSubscriptionToPlus(env, { customerId, subscriptionId, email, name, phone, retainAfterCall, fetchImpl } = {}) {
+  const plus = getPlan('plus');
+  const id = String(subscriptionId || '').trim();
+  if (!id) {
+    const err = new Error('No Personal subscription to upgrade');
+    err.status = 404;
+    throw err;
+  }
+  const subscription = await stripeRequest(env, {
+    method: 'GET',
+    path: `subscriptions/${encodeURIComponent(id)}`,
+    fetchImpl,
+  });
+  const alreadyPlus = planFromCustomerAndSubscription(null, subscription)
+    && planFromCustomerAndSubscription(null, subscription).id === 'plus';
+  const itemId = firstSubscriptionItemId(subscription);
+  if (!alreadyPlus) {
+    if (!itemId) {
+      const err = new Error('Personal subscription has no item to switch to Plus');
+      err.status = 502;
+      throw err;
+    }
+    const form = encodeForm(plusRecurringFields(env, itemId));
+    const amount = form.get('items[0][price_data][unit_amount]');
+    if (amount && amount !== String(plus.amountCents)) {
+      const err = new Error('Plus recurring amount must be $40');
+      err.status = 500;
+      throw err;
+    }
+    if (form.get('proration_behavior') !== 'none') {
+      const err = new Error('Upgrade must not invent Stripe proration');
+      err.status = 500;
+      throw err;
+    }
+    await stripeRequest(env, {
+      method: 'POST',
+      path: `subscriptions/${encodeURIComponent(id)}`,
+      form,
+      fetchImpl,
+    });
+  }
+  const customer = await stripeRequest(env, {
+    method: 'POST',
+    path: `customers/${encodeURIComponent(customerId)}`,
+    form: encodeForm(customerFields({
+      email,
+      name,
+      phone,
+      plan: plus,
+      retainAfterCall,
+    })),
+    fetchImpl,
+  });
+  await postAccountSync(
+    env,
+    payloadFromStripeCustomer({
+      ...customer,
+      id: customerId,
+      email,
+      name: name || customer.name,
+      phone,
+      metadata: {
+        ...(customer.metadata || {}),
+        plan: plus.id,
+        minutes: String(plus.minutes),
+        phone,
+        retain_after_call: retainAfterCall,
+      },
+    }, { eventCreated: Date.now() / 1000 }),
+    fetchImpl,
+  );
+  return {
+    plan: plus.id,
+    minutes: plus.minutes,
+    amountCents: plus.amountCents,
+    subscriptionId: id,
+    customerId,
+  };
+}
+
+export async function applyPaidPersonalToPlusUpgrade(env, session, fetchImpl) {
+  if (!isPersonalToPlusCheckout(session)) return null;
+  const complete = session.status === 'complete';
+  const paid = session.payment_status === 'paid';
+  if (!complete || !paid) {
+    const err = new Error('Payment is not complete');
+    err.status = 402;
+    throw err;
+  }
+  const plus = getPlan('plus');
+  const metadata = session.metadata || {};
+  const customerId = typeof session.customer === 'string'
+    ? session.customer
+    : session.customer && session.customer.id;
+  const phone = assertUserPhone(metadata.phone || (session.customer_details && session.customer_details.phone), env);
+  const email = assertEmail(metadata.email || session.customer_email);
+  const retain = normalizeRetain(metadata.retain_after_call);
+  const name = String(metadata.name || (session.customer_details && session.customer_details.name) || '').trim();
+  let subscriptionId = String(metadata.subscription || '').trim();
+  if (!subscriptionId && customerId) {
+    const existing = await findSubscriptionForCustomer(env, customerId, fetchImpl);
+    subscriptionId = existing && existing.id ? existing.id : '';
+  }
+  const switched = await switchSubscriptionToPlus(env, {
+    customerId,
+    subscriptionId,
+    email,
+    name,
+    phone,
+    retainAfterCall: retain,
+    fetchImpl,
+  });
+  return {
+    ok: true,
+    kind: PERSONAL_TO_PLUS_KIND,
+    plan: plus.id,
+    minutes: plus.minutes,
+    overage: plus.overage,
+    retainAfterCall: retain,
+    phone,
+    email,
+    name: name || null,
+    firstName: firstNameFrom(name),
+    customerId,
+    subscriptionId: switched.subscriptionId,
+    sessionId: session.id,
+    upgradeDeltaCents: PERSONAL_TO_PLUS_DELTA_CENTS,
+  };
+}
+
 export function checkoutForm({ origin, plan, email, name, phone, retainAfterCall, customerId, priceId }) {
   const successUrl = `${origin}/start.html?session_id={CHECKOUT_SESSION_ID}&plan=${encodeURIComponent(plan.id)}`;
   const cancelUrl = `${origin}/pay.html?plan=${encodeURIComponent(plan.id)}`;
@@ -180,6 +401,66 @@ export async function createCheckoutSession(env, { origin, planId, email, name, 
   const normalizedPhone = assertUserPhone(phone, env);
   const retain = normalizeRetain(retainAfterCall);
   const trimmedName = String(name || '').trim();
+  const existingCustomer = await findCustomerByEmail(env, normalizedEmail, fetchImpl);
+  const existingSubscription = existingCustomer && existingCustomer.id
+    ? await findSubscriptionForCustomer(env, existingCustomer.id, fetchImpl)
+    : null;
+
+  if (isPersonalToPlusUpgrade(plan, existingCustomer, existingSubscription)) {
+    const plus = getPlan('plus');
+    const customer = await findOrCreateCustomer(env, {
+      email: normalizedEmail,
+      name: trimmedName,
+      phone: normalizedPhone,
+      plan: getPlan('personal'),
+      retainAfterCall: retain,
+      fetchImpl,
+    });
+    const form = personalToPlusCheckoutForm({
+      origin,
+      email: normalizedEmail,
+      name: trimmedName,
+      phone: normalizedPhone,
+      retainAfterCall: retain,
+      customerId: customer.id,
+      subscriptionId: existingSubscription.id,
+    });
+    const amount = form.get('line_items[0][price_data][unit_amount]');
+    if (amount !== String(PERSONAL_TO_PLUS_DELTA_CENTS)) {
+      const err = new Error('Personal to Plus upgrade must charge $20 today');
+      err.status = 500;
+      throw err;
+    }
+    if (form.get('mode') !== 'payment' || form.has('line_items[0][price]') || form.has('subscription_data[trial_period_days]')) {
+      const err = new Error('Personal to Plus upgrade must be a $20 payment, not a new Plus subscription');
+      err.status = 500;
+      throw err;
+    }
+    const session = await stripeRequest(env, {
+      method: 'POST',
+      path: 'checkout/sessions',
+      form,
+      fetchImpl,
+    });
+    if (!session.url) {
+      const err = new Error('Stripe Checkout URL missing');
+      err.status = 502;
+      throw err;
+    }
+    return {
+      id: session.id,
+      url: session.url,
+      plan: plus.id,
+      minutes: plus.minutes,
+      phone: normalizedPhone,
+      retainAfterCall: retain,
+      customerId: customer.id,
+      kind: PERSONAL_TO_PLUS_KIND,
+      dueTodayCents: PERSONAL_TO_PLUS_DELTA_CENTS,
+      recurringAmountCents: plus.amountCents,
+    };
+  }
+
   const customer = await findOrCreateCustomer(env, {
     email: normalizedEmail,
     name: trimmedName,
@@ -324,7 +605,7 @@ export function paidSessionView(session) {
     err.status = 402;
     throw err;
   }
-  if (session.mode && session.mode !== 'subscription') {
+  if (!isPersonalToPlusCheckout(session) && session.mode && session.mode !== 'subscription') {
     const err = new Error('Checkout Session is not a subscription');
     err.status = 400;
     throw err;
@@ -360,6 +641,9 @@ export async function verifyCheckoutSession(env, sessionId, fetchImpl) {
     path: `checkout/sessions/${encodeURIComponent(id)}`,
     fetchImpl,
   });
+  if (isPersonalToPlusCheckout(session)) {
+    await applyPaidPersonalToPlusUpgrade(env, session, fetchImpl);
+  }
   const view = paidSessionView(session);
   if (!view.customerId) return view;
   try {
@@ -371,6 +655,12 @@ export async function verifyCheckoutSession(env, sessionId, fetchImpl) {
     const name = String(customer.name || view.name || '').trim();
     view.name = name || null;
     view.firstName = firstNameFrom(name);
+    const livePlan = getPlan(customer.metadata && customer.metadata.plan);
+    if (livePlan && livePlan.id === 'plus') {
+      view.plan = livePlan.id;
+      view.minutes = livePlan.minutes;
+      view.overage = livePlan.overage;
+    }
   } catch {
     // Keep Checkout Session name when Customer retrieve fails.
   }
