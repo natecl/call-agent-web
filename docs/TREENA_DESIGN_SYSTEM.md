@@ -3,7 +3,7 @@
 Demo playback refinement: the message thread initializes empty and resets to time zero when viewport playback ownership changes. On entry it holds the empty state for 900ms, then reveals the request, reply, call, and result. Reduced-motion still shows the completed static example.
 
 
-Homepage CTA refinement: all Text Treena actions use sage fills and dark labels consistently across home and subpages, per the latest visual review. Watch a call has a dark pill surface and visible border. Destinations and click behavior are unchanged.
+Cap 2026-09-15 (Nathan): hero **Text Treena** keeps that label and goes to `pricing.html` (same destination as header Get started). Header Get started and Log in are unchanged. Post-pay `/start` Text Treena stays `sms:+12138653024`. Sage fill is unchanged.
 
 
 ## Shared motion refinement — shipped on live `/` (measured)
@@ -16,7 +16,7 @@ Cap lock 2026-09-14: header keeps Log in; marketing Text Treena stays `sms:+1213
 Removed the visible “Illustrative demo” label and connecting cord. Replaced the old use-case illustrations with warm-white and sage outcome cards. Marketing “Text Treena” stays `sms:+12138653024`. Auth, billing and call behavior are unchanged. This supersedes historical artwork descriptions below; it does not change CTA destinations.
 
 
-Status: live `/` SHA matches git (9395 B). UI-only rebrand. Dashboard product-live stays sot-ready. This agent must not deploy Pages.
+Status: working-tree home SHA is below in FEATURE_MAP. Live `/` remains 9395 B until Pages deploy (this agent must not deploy). UI-only rebrand plus this hero destination. Dashboard product-live stays sot-ready.
 
 ## Direction
 
