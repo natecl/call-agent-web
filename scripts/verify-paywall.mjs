@@ -255,6 +255,9 @@ const pay = read('public/pay.html');
 ok('pay posts to /api/checkout', /\/api\/checkout/.test(read('public/checkout.js')));
 ok('start verifies /api/session', /\/api\/session/.test(read('public/checkout.js')));
 ok('start name form is required after pay', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && /required/.test(read('public/start.html')));
+ok('start phone confirm is user E.164 not Treena bot', /id="start-phone-form"/.test(read('public/start.html')) && /id="start-user-phone"/.test(read('public/start.html')) && /Not Treena’s shared bot number/.test(read('public/start.html')) && /the one you’ll text from/.test(read('public/start.html')));
+ok('start how-to-text shows published iMessage DID', /id="start-ready"/.test(read('public/start.html')) && /data-imessage-e164/.test(read('public/start.html')) && /sms:\+12138653024/.test(read('public/start.html')) && /id="start-dashboard"/.test(read('public/start.html')) && /Who to call\. What you need\./.test(read('public/start.html')));
+ok('start directory index matches onboarding steps', /id="start-phone-form"/.test(read('public/start/index.html')) && /id="start-dashboard"/.test(read('public/start/index.html')) && /data-onboard="imessage"/.test(read('public/start/index.html')));
 ok('dashboard fetches /api/dashboard', /\/api\/dashboard/.test(read('public/checkout.js')));
 ok('pay no longer marks paid locally', !/KEY\.paid|treena-stub-paid|setItem\([^)]*paid/.test(read('public/checkout.js')));
 ok('start page waits for Stripe session', /session_id/.test(read('public/checkout.js')) && /start-ready/.test(read('public/start.html')));
@@ -754,12 +757,14 @@ ok('signup does not collect name', !/id="name"/.test(read('public/account.html')
 ok('home still has iMessage line in index', read('public/index.html').includes(IMESSAGE_LINE));
 ok('account copy: name lives in settings after signup', read('public/account.html').includes(SETTINGS_NAME_COPY) && read('public/account/index.html').includes(SETTINGS_NAME_COPY));
 ok('start collects name and settings copy', /id="start-name-form"/.test(read('public/start.html')) && /id="name"/.test(read('public/start.html')) && read('public/start.html').includes(SETTINGS_NAME_COPY) && read('public/start/index.html').includes(SETTINGS_NAME_COPY));
+ok('start phone confirm rejects shared bot copy', /Not Treena’s shared iMessage bot/.test(read('public/start.html')) && /id="start-phone-form"/.test(read('public/checkout.js')) && /isReservedUserPhone/.test(read('public/checkout.js')));
 ok('dashboard copy: name lives in settings after signup', read('public/dashboard.html').includes(SETTINGS_NAME_COPY) && read('public/dashboard/index.html').includes(SETTINGS_NAME_COPY));
 ok('OAuth provider sign-in present', /Sign in with Google/.test(publicBlob) && /Sign in with Apple/.test(publicBlob) && /accounts\.google\.com/.test(functionsBlob));
 ok('login.html is not the homepage', existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')) && /Log in to Treena/.test(read('public/login.html')) && !/id="hero-title"/.test(read('public/login.html')));
 ok('_redirects aliases signin to /login', /\/signin \/login 301/.test(read('public/_redirects')) && existsSync(join(root, 'public/login.html')) && existsSync(join(root, 'public/login/index.html')));
 ok('coming-soon copy is gone', !/coming soon/i.test(publicBlob + read('public/pricing.html') + read('public/start.html') + read('public/login.html')));
 ok('Text Treena CTAs use the sandbox DID', /sms:\+12138653024/.test(read('public/index.html')) && /sms:\+12138653024/.test(read('public/start.html')) && read('public/imessage.js').includes(DEFAULT_TREENA_IMESSAGE_E164));
+ok('chrome hydrates published iMessage DID into the page', /data-imessage-e164/.test(read('public/chrome.js')) && /cfg\.imessage\.e164/.test(read('public/chrome.js')));
 ok('account phone is the user number, not a Treena DID', /Not Treena’s shared bot number/.test(read('public/account.html')) && !/per-user Treena DID/.test(read('public/account.html')));
 ok('imessage helper defaults to Cap DID', treenaIMessageView({}).e164 === '+12138653024' && treenaIMessageView({ PUBLIC_TREENA_IMESSAGE_E164: '+14155550100' }).e164 === '+14155550100');
 
@@ -915,6 +920,8 @@ ok('dashboard threads empty state', /No threads yet\. Text Treena at \+121386530
 ok('dashboard observability empty state', /Call details weren’t saved\. That’s the default\. Turn on save in account settings to keep transcripts and reports\./.test(dashboardHtml));
 ok('dashboard directory index exists', existsSync(join(root, 'public/dashboard/index.html')));
 ok('start name gate posts /api/account', /start-name-form/.test(read('public/checkout.js')) && /\/api\/account/.test(read('public/checkout.js')));
+ok('start wizard is name then phone then how-to then dashboard', /showStartPanel\('start-name'\)/.test(read('public/checkout.js')) && /showStartPanel\('start-phone'\)/.test(read('public/checkout.js')) && /showStartPanel\('start-ready'\)/.test(read('public/checkout.js')) && /start-dashboard/.test(read('public/checkout.js')) && /saveStartAccount/.test(read('public/checkout.js')));
+ok('start does not skip to dashboard after name', /start-name-form/.test(read('public/checkout.js')) && /showStartPanel\('start-phone'\)/.test(read('public/checkout.js')) && !/nameForm[\s\S]{0,800}location\.replace\(withSession\('dashboard\.html'/.test(read('public/checkout.js')));
 
 const namelessCustomer = {
   id: 'cus_test_123',
@@ -1550,7 +1557,7 @@ ok('FEATURE_MAP marks privacy shipped', featureMap.includes('| `/privacy.html` |
 ok('FEATURE_MAP privacy locked copy is the live page', /locked copy.*is live/.test(featureMap) && /We don’t store anything unless you opt in/.test(featureMap));
 ok('FEATURE_MAP does not hold privacy for default-no-store', !/not live-shipped/.test(featureMap) && !/Do not deploy until Builder/.test(featureMap));
 ok('FEATURE_MAP marks dashboard sot-ready on Pages', featureMap.includes('| `/dashboard.html` | `public/dashboard.html` | sot-ready |') && /Present on Pages GET `\/dashboard`/.test(featureMap) && /Cap has not GO/.test(featureMap) && /Cap not GO for product-live/.test(featureMap));
-ok('FEATURE_MAP start is post-pay name then dashboard', /Post-pay name gate/.test(featureMap) && /required name form/.test(featureMap));
+ok('FEATURE_MAP start is post-pay name, phone confirm, how to text, dashboard', /phone confirm/.test(featureMap) && /How to text Treena/.test(featureMap) && /PUBLIC_TREENA_IMESSAGE_E164/.test(featureMap) && /name → phone confirm → how to text Treena → dashboard/.test(featureMap));
 ok('FEATURE_MAP records HMAC dashboard GET', featureMap.includes('| account-fly-dashboard |') && /accounts\/dashboard/.test(featureMap) && /phone query value/.test(featureMap));
 ok('FEATURE_MAP records billing period / portal / cancel / settings', featureMap.includes('| dashboard-billing-period |') && featureMap.includes('| dashboard-billing-portal |') && featureMap.includes('| dashboard-cancel-plan |') && featureMap.includes('| dashboard-account-settings |') && featureMap.includes('| dashboard-retain-persist |') && featureMap.includes('| logged-in-home-route |'));
 ok('FEATURE_MAP records dashboard remaining + locked minute packs', featureMap.includes('| dashboard-usage |') && featureMap.includes('| dashboard-minute-pack |') && /\$1\.00 per 5 connected minutes/.test(featureMap) && /12 packs/.test(featureMap) && /No auto-meter/.test(featureMap) && /POST \/api\/billing\/pack/.test(featureMap) && /price is locked/.test(featureMap) && !/Blocked on pack price/.test(featureMap));
@@ -1562,6 +1569,7 @@ ok('FEATURE_MAP omits minutes_used: 0', /`minutes_used` is omitted/.test(feature
 const agents = read('AGENTS.md');
 ok('AGENTS.md points Cloud Agents at FEATURE_MAP + npm run verify', /FEATURE_MAP/.test(agents) && /npm run verify/.test(agents) && agents.includes(IMESSAGE_LINE));
 ok('AGENTS.md records TRE-22 unfreeze and no name on account', /TRE-22/.test(agents) && /No `#name`/.test(agents) && /\/login/.test(agents) && /\+12138653024/.test(agents));
+ok('AGENTS.md records post-pay onboarding order', /phone confirm/.test(agents) && /how to text Treena/.test(agents) && /PUBLIC_TREENA_IMESSAGE_E164/.test(agents) && /junk `sessionId` ignored/.test(agents));
 ok('CI runs npm run verify', /npm run verify/.test(read('.github/workflows/ci.yml')));
 
 const liveOrigin = String(process.env.VERIFY_LIVE_ORIGIN || '').trim().replace(/\/+$/, '');

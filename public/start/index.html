@@ -23,7 +23,7 @@
   <nav aria-label="Main navigation"><a href="../pricing.html">Pricing</a><a href="../privacy.html">Privacy</a><a href="../index.html#how-it-works">How it works</a><a href="../index.html#use-cases">What it can do</a></nav>
   <div class="nav-end"><a class="button primary" href="../pricing.html">Get started</a><a class="nav-login" href="../login.html">Log in</a></div>
 </header>
-<main id="main" class="page-main page-flow"><ol class="flow-steps" aria-label="Setup progress"><li class="complete"><span>1</span>Your details</li><li class="complete"><span>2</span>Review & pay</li><li class="current" aria-current="step"><span>3</span>Get started</li></ol><div class="flow-panel">
+<main id="main" class="page-main page-flow"><ol class="flow-steps onboard-steps" aria-label="After you pay"><li data-onboard="name" class="current" aria-current="step"><span>1</span>Name</li><li data-onboard="phone"><span>2</span>Phone</li><li data-onboard="imessage"><span>3</span>How to text</li><li data-onboard="dashboard"><span>4</span>Dashboard</li></ol><div class="flow-panel">
   <div id="start-pending" role="status" aria-live="polite">
     <h1>Confirming payment</h1>
     <p class="page-lead">Checking your Stripe subscription…</p>
@@ -40,18 +40,41 @@
         <p class="field-hint" id="name-hint">First name is enough. Letters, spaces, apostrophes, and hyphens. Name lives in account settings after signup.</p>
       </div>
       <div class="flow-actions">
-        <button class="button primary" type="submit">Continue to dashboard <span aria-hidden="true">→</span></button>
+        <button class="button primary" type="submit">Continue <span aria-hidden="true">→</span></button>
       </div>
     </form>
     <p class="flow-error" id="name-error" role="alert" hidden></p>
     <p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
-  <div id="start-ready" hidden>
-    <p class="eyebrow">All set</p><h1>A little more<br>off your plate.</h1>
-    <p class="page-lead"><span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span> Text Treena at +12138653024.</p>
+  <div id="start-phone" hidden>
+    <p class="eyebrow">Confirm your number</p>
+    <h1>What number will you<br>text from?</h1>
+    <p class="page-lead">This is your phone — the one iMessage sends from. Not Treena’s shared iMessage bot.</p>
     <p class="plan-echo"><span data-plan-name>Personal</span> · $<span data-plan-price>20</span>/mo · <span data-plan-minutes>30</span> connected min</p>
+    <form id="start-phone-form">
+      <div class="field">
+        <label for="start-user-phone">Phone</label>
+        <input id="start-user-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+1…" aria-describedby="start-phone-hint">
+        <p class="field-hint" id="start-phone-hint">Your number (the one you’ll text from), E.164 like +14155552671. Not Treena’s shared bot number.</p>
+      </div>
+      <div class="flow-actions">
+        <button class="button primary" type="submit">Continue <span aria-hidden="true">→</span></button>
+      </div>
+    </form>
+    <p class="flow-error" id="phone-error" role="alert" hidden></p>
+    <p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
+  </div>
+  <div id="start-ready" hidden>
+    <p class="eyebrow">How to text Treena</p>
+    <h1>Text this number<br>from iMessage.</h1>
+    <p class="page-lead"><span data-stripe-live-only>Your subscription is confirmed.</span><span data-stripe-test-only hidden>Your test subscription is confirmed.</span> Everyone texts the same Treena iMessage bot. That’s not the phone you just confirmed — you text <em>from</em> your number <em>to</em> Treena.</p>
+    <p class="plan-echo">Treena · <span data-imessage-e164>+12138653024</span></p>
     <p class="page-cta"><a class="button primary text-relay" href="sms:+12138653024">Text Treena</a></p>
-    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Include the business, their number if you have it, and what you’d like Treena to ask.</p></div><p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
+    <div class="first-call"><p class="eyebrow">Your first text, made simple</p><h2>Who to call. What you need.</h2><p>Open iMessage. Text Treena at <span data-imessage-e164>+12138653024</span>. Include the business, their number if you have it, and what you’d like Treena to ask.</p></div>
+    <div class="flow-actions">
+      <button class="button primary" type="button" id="start-dashboard">Continue to dashboard <span aria-hidden="true">→</span></button>
+    </div>
+    <p class="stub-note">Name lives in account settings after signup. <span data-stripe-live-only>Your Stripe subscription is active.</span><span data-stripe-test-only hidden>Stripe TEST subscription is active. No real charge.</span></p>
   </div>
 </div><p class="flow-footer">A little less calling. A little more living.</p></main>
 <footer>
@@ -70,8 +93,8 @@
   <div class="message-preview"><span>You → Treena</span><p>Can you call and check their hours for Saturday?</p></div><button class="button primary" id="dialog-demo">See how Treena works <span aria-hidden="true">↗</span></button><p class="dialog-footnote">You text the task. Treena makes the call.</p>
 </dialog>
 <script src="../imessage.js?v=20260913-imessage1"></script>
-<script src="../chrome.js?v=20260914-session1"></script>
-<script src="../checkout.js?v=20260914-session1"></script>
+<script src="../chrome.js?v=20260915-onboard1"></script>
+<script src="../checkout.js?v=20260915-onboard1"></script>
 <script src="../motion.js?v=20260914-nav12"></script>
 </body>
 </html>

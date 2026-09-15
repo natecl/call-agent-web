@@ -87,6 +87,47 @@
     if (el) el.hidden = hidden;
   }
 
+  function showStartPanel(id) {
+    setHidden('start-pending', true);
+    setHidden('start-name', id !== 'start-name');
+    setHidden('start-phone', id !== 'start-phone');
+    setHidden('start-ready', id !== 'start-ready');
+    const current = ({ 'start-name': 'name', 'start-phone': 'phone', 'start-ready': 'imessage' })[id];
+    const order = ['name', 'phone', 'imessage', 'dashboard'];
+    const currentIndex = order.indexOf(current);
+    document.querySelectorAll('[data-onboard]').forEach((li) => {
+      const step = li.getAttribute('data-onboard');
+      const index = order.indexOf(step);
+      const isCurrent = step === current;
+      li.classList.toggle('current', isCurrent);
+      li.classList.toggle('complete', index > -1 && index < currentIndex);
+      if (isCurrent) li.setAttribute('aria-current', 'step');
+      else li.removeAttribute('aria-current');
+    });
+  }
+
+  function readStoredAccount() {
+    const out = { email: '', phone: '', name: '', retainAfterCall: 'off' };
+    try {
+      out.email = sessionStorage.getItem(KEY.email) || '';
+      out.phone = sessionStorage.getItem(KEY.phone) || '';
+      out.name = sessionStorage.getItem(KEY.name) || '';
+      out.retainAfterCall = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off';
+    } catch (_) {}
+    return out;
+  }
+
+  function reservedUserPhones() {
+    const out = ['+12138653024', '+12135690899'];
+    const published = window.TREENA_IMESSAGE_E164;
+    if (published && out.indexOf(published) === -1) out.push(published);
+    return out;
+  }
+
+  function isReservedUserPhone(e164) {
+    return Boolean(e164 && reservedUserPhones().indexOf(e164) !== -1);
+  }
+
   function showError(id, message) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -401,10 +442,26 @@
     });
   }
 
+  function applyIMessage(cfg) {
+    const im = cfg && cfg.imessage;
+    if (!im || !im.e164) return;
+    window.TREENA_IMESSAGE_E164 = im.e164;
+    if (im.smsUrl) window.TREENA_MESSAGE_URL = im.smsUrl;
+    document.querySelectorAll('a.text-relay').forEach((a) => {
+      if (im.smsUrl) a.href = im.smsUrl;
+    });
+    document.querySelectorAll('[data-imessage-e164]').forEach((el) => {
+      el.textContent = im.e164;
+    });
+  }
+
   function loadStripeMode() {
     return fetch('/api/config')
       .then((res) => res.json())
-      .then(applyStripeMode)
+      .then((cfg) => {
+        applyStripeMode(cfg);
+        applyIMessage(cfg);
+      })
       .catch(() => applyStripeMode({ mode: 'live' }));
   }
 
@@ -491,12 +548,22 @@
         storeSession(result, result.sessionId || sessionId);
         rememberCsrf(result.csrf);
         rememberSessionInUrl(result.sessionId || sessionId, result.plan || (paidPlan && paidPlan.id));
-        if (hasName(result)) {
-          location.replace(withSession('dashboard.html', result.sessionId || sessionId, result.plan || (paidPlan && paidPlan.id)));
-          return;
+        const nameInput = document.getElementById('name');
+        if (nameInput && (result.name || result.firstName) && !nameInput.value) {
+          nameInput.value = result.name || result.firstName;
         }
-        setHidden('start-pending', true);
-        setHidden('start-name', false);
+        const phoneInput = document.getElementById('start-user-phone');
+        if (phoneInput) {
+          const fromAccount = result.phone || '';
+          let fromStore = '';
+          try { fromStore = sessionStorage.getItem(KEY.phone) || ''; } catch (_) {}
+          if (!phoneInput.value) phoneInput.value = fromAccount || fromStore;
+        }
+        if (!hasName(result)) {
+          showStartPanel('start-name');
+        } else {
+          showStartPanel('start-phone');
+        }
       } catch (_) {
         try {
           if (!validCheckoutSessionId(sessionStorage.getItem(KEY.session))) {
@@ -799,6 +866,34 @@
     });
   }
 
+  async function saveStartAccount({ name, phone }) {
+    const stored = readStoredAccount();
+    const sessionId = resolveSessionId() || undefined;
+    const planForSave = paidPlan || plan || PLANS.personal;
+    const saved = await api('/api/account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        plan: (planForSave && planForSave.id) || 'personal',
+        email: stored.email,
+        name: name || stored.name,
+        phone: phone || stored.phone,
+        retainAfterCall: stored.retainAfterCall,
+      }),
+    });
+    storeSession({
+      sessionId,
+      plan: saved.plan || (planForSave && planForSave.id),
+      email: saved.email || stored.email,
+      phone: saved.phone || phone || stored.phone,
+      retainAfterCall: saved.retainAfterCall || stored.retainAfterCall,
+      name: saved.name || name || stored.name,
+    }, sessionId);
+    rememberCsrf(saved.csrf);
+    return { saved, sessionId, planForSave };
+  }
+
   const nameForm = document.getElementById('start-name-form');
   if (nameForm) {
     const nameInput = document.getElementById('name');
@@ -813,50 +908,75 @@
         nameInput.setCustomValidity(firstNameFrom(name) ? '' : 'Use a first name, like Nathan');
       }
       if (!nameForm.reportValidity()) return;
-      let email = '';
-      let phone = '';
-      let retainAfterCall = 'off';
-      let sessionId = resolveSessionId() || undefined;
-      try {
-        email = sessionStorage.getItem(KEY.email) || '';
-        phone = sessionStorage.getItem(KEY.phone) || '';
-        retainAfterCall = sessionStorage.getItem(KEY.retain) === 'on' ? 'on' : 'off';
-      } catch (_) {}
-      const planForSave = paidPlan || plan || PLANS.personal;
       const submit = nameForm.querySelector('[type="submit"]');
       if (submit) {
         submit.disabled = true;
         submit.textContent = 'Saving…';
       }
       try {
-        const saved = await api('/api/account', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            plan: (planForSave && planForSave.id) || 'personal',
-            email,
-            name,
-            phone,
-            retainAfterCall,
-          }),
-        });
-        storeSession({
-          sessionId,
-          plan: saved.plan || (planForSave && planForSave.id),
-          email: saved.email || email,
-          phone: saved.phone || phone,
-          retainAfterCall: saved.retainAfterCall || retainAfterCall,
-          name: saved.name || name,
-        }, sessionId);
-        location.replace(withSession('dashboard.html', sessionId, (planForSave && planForSave.id)));
+        try { sessionStorage.setItem(KEY.name, name); } catch (_) {}
+        await saveStartAccount({ name });
+        showStartPanel('start-phone');
       } catch (error) {
-        showError('name-error', error.message || 'Could not save your name');
+        const msg = error.message || 'Could not save your name';
+        if (/phone number is required/i.test(msg)) {
+          showStartPanel('start-phone');
+        } else {
+          showError('name-error', msg);
+        }
+      } finally {
         if (submit) {
           submit.disabled = false;
-          submit.textContent = 'Continue to dashboard →';
+          submit.textContent = 'Continue →';
         }
       }
+    });
+  }
+
+  const phoneForm = document.getElementById('start-phone-form');
+  if (phoneForm) {
+    const phoneInput = document.getElementById('start-user-phone');
+    if (phoneInput) {
+      phoneInput.addEventListener('input', () => phoneInput.setCustomValidity(''));
+    }
+    phoneForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showError('phone-error', '');
+      const phone = phoneInput ? normalizeE164(phoneInput.value) : '';
+      if (phoneInput) {
+        if (!phone) {
+          phoneInput.setCustomValidity('Use an E.164 phone number, like +14155552671');
+        } else if (isReservedUserPhone(phone)) {
+          phoneInput.setCustomValidity('Use your own phone number — the one you’ll text Treena from. Not Treena’s shared number.');
+        } else {
+          phoneInput.setCustomValidity('');
+        }
+      }
+      if (!phoneForm.reportValidity()) return;
+      const submit = phoneForm.querySelector('[type="submit"]');
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = 'Saving…';
+      }
+      try {
+        await saveStartAccount({ phone });
+        showStartPanel('start-ready');
+      } catch (error) {
+        showError('phone-error', error.message || 'Could not save your phone');
+      } finally {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = 'Continue →';
+        }
+      }
+    });
+  }
+
+  const startDashboard = document.getElementById('start-dashboard');
+  if (startDashboard) {
+    startDashboard.addEventListener('click', () => {
+      const planForSave = paidPlan || plan || PLANS.personal;
+      location.replace(withSession('dashboard.html', resolveSessionId(), planForSave && planForSave.id));
     });
   }
 
