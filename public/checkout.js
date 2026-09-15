@@ -265,6 +265,22 @@
     }
   }
 
+  function canUpgradeToPlus(billed) {
+    return Boolean(
+      billed
+      && billed.plan === 'personal'
+      && !billed.complimentary
+      && billed.canManageBilling !== false
+    );
+  }
+
+  function applyUpgradeCta(billed) {
+    const show = canUpgradeToPlus(billed);
+    document.querySelectorAll('[data-upgrade-plan]').forEach((el) => {
+      el.hidden = !show;
+    });
+  }
+
   function applyComplimentary(billed) {
     const grant = Boolean(billed && billed.complimentary);
     document.querySelectorAll('[data-complimentary-only]').forEach((el) => {
@@ -492,8 +508,11 @@
         applyOAuthSession(me);
         if (me && me.signedIn) {
           if (me.hasAccount) {
-            location.replace('/dashboard');
-            return;
+            const plusUpgrade = plan && plan.id === 'plus' && !me.complimentary;
+            if (!plusUpgrade) {
+              location.replace('/dashboard');
+              return;
+            }
           }
           if (!email && me.email) email = me.email;
           if (!phone && me.phone) phone = me.phone;
@@ -782,6 +801,7 @@
         const billed = result.billing || {};
         applyStripeMode(billed);
         applyComplimentary(billed);
+        applyUpgradeCta(billed);
         const usage = result.usage || {};
         const billedPlan = PLANS[billed.plan];
         if (billedPlan) showPlan(billedPlan);
