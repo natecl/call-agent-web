@@ -37,6 +37,7 @@ fetch('/api/config').then((res) => res.json()).then((cfg) => {
   window.TREENA_IMESSAGE_E164 = cfg.imessage.e164;
   window.TREENA_MESSAGE_URL = cfg.imessage.smsUrl;
   document.querySelectorAll('a.text-relay').forEach((a) => { a.href = cfg.imessage.smsUrl; });
+  document.querySelectorAll('[data-imessage-e164]').forEach((el) => { el.textContent = cfg.imessage.e164; });
 }).catch(() => {});
 
 fetch('/api/auth/me').then((res) => res.json()).then((me) => {
