@@ -137,7 +137,7 @@ if(dialog){
   const demoBtn=$('#dialog-demo');
   if(demoBtn)demoBtn.addEventListener('click',()=>{dialog.close();watchDemo()});
 }
-fetch('/api/config').then(res=>res.json()).then(cfg=>{if(!cfg||!cfg.imessage||!cfg.imessage.smsUrl)return;window.TREENA_IMESSAGE_E164=cfg.imessage.e164;window.TREENA_MESSAGE_URL=cfg.imessage.smsUrl;$$('a.text-relay').forEach(a=>{a.href=cfg.imessage.smsUrl})}).catch(()=>{});
+fetch('/api/config').then(res=>res.json()).then(cfg=>{if(!cfg||!cfg.imessage||!cfg.imessage.smsUrl)return;window.TREENA_IMESSAGE_E164=cfg.imessage.e164;window.TREENA_MESSAGE_URL=cfg.imessage.smsUrl;$$('a.text-relay').forEach(a=>{if(String(a.getAttribute('href')||'').startsWith('sms:'))a.href=cfg.imessage.smsUrl})}).catch(()=>{});
 
 // Homepage scroll reveals: a soft section entrance followed by staggered details.
 const revealTargets=[$('.demo'),$('.how-strip'),$('.use-cases'),$('.closing'),$('footer')];
