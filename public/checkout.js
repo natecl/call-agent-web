@@ -74,12 +74,16 @@
     });
   }
 
-  function showPlan(plan) {
+  function showPlan(plan, opts) {
+    const options = opts || {};
+    const due = options.dueToday != null ? options.dueToday : plan.price;
     fill('[data-plan-name]', plan.name);
     fill('[data-plan-price]', String(plan.price));
     fill('[data-plan-minutes]', String(plan.minutes));
     fill('[data-plan-overage]', plan.overage);
-    fill('[data-pay-label]', `Pay $${plan.price}`);
+    fill('[data-pay-label]', `Pay $${due}`);
+    fill('[data-due-today]', String(due));
+    showRow('[data-due-today-row]', Boolean(options.upgradeDelta));
   }
 
   function setHidden(id, hidden) {
@@ -263,6 +267,22 @@
         || !(billed && billed.subscriptionId);
       cancelBtn.disabled = false;
     }
+  }
+
+  function canUpgradeToPlus(billed) {
+    return Boolean(
+      billed
+      && billed.plan === 'personal'
+      && !billed.complimentary
+      && billed.canManageBilling !== false
+    );
+  }
+
+  function applyUpgradeCta(billed) {
+    const show = canUpgradeToPlus(billed);
+    document.querySelectorAll('[data-upgrade-plan]').forEach((el) => {
+      el.hidden = !show;
+    });
   }
 
   function applyComplimentary(billed) {
@@ -492,8 +512,12 @@
         applyOAuthSession(me);
         if (me && me.signedIn) {
           if (me.hasAccount) {
-            location.replace('/dashboard');
-            return;
+            const plusUpgrade = plan && plan.id === 'plus' && !me.complimentary && me.plan === 'personal';
+            if (!plusUpgrade) {
+              location.replace('/dashboard');
+              return;
+            }
+            showPlan(plan, { dueToday: 20, upgradeDelta: true });
           }
           if (!email && me.email) email = me.email;
           if (!phone && me.phone) phone = me.phone;
@@ -782,6 +806,7 @@
         const billed = result.billing || {};
         applyStripeMode(billed);
         applyComplimentary(billed);
+        applyUpgradeCta(billed);
         const usage = result.usage || {};
         const billedPlan = PLANS[billed.plan];
         if (billedPlan) showPlan(billedPlan);
@@ -983,6 +1008,15 @@
   const payForm = document.getElementById('pay-form');
   if (payForm && plan) {
     const submit = payForm.querySelector('[type="submit"]');
+    function currentPayDue() {
+      const dueRow = document.querySelector('[data-due-today-row]');
+      const dueEl = document.querySelector('[data-due-today]');
+      if (dueRow && !dueRow.hidden && dueEl) {
+        const n = Number(dueEl.textContent);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return plan.price;
+    }
     payForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       showError('pay-error', '');
@@ -1029,7 +1063,7 @@
         showError('pay-error', error.message || 'Checkout failed');
         if (submit) {
           submit.disabled = false;
-          submit.textContent = `Pay $${plan.price}`;
+          submit.textContent = `Pay $${currentPayDue()}`;
         }
       }
     });

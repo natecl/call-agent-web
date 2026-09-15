@@ -7,8 +7,8 @@
   <meta name="description" content="Your Treena dashboard — usage, billing, threads, and call details.">
   <title>Treena — Your account</title>
   <link rel="icon" href="assets/treena-icon.svg">
-  <link rel="stylesheet" href="treena-theme.css?v=20260914-navleft">
-  <link rel="stylesheet" href="dashboard-ui.css?v=20260914-usage1">
+  <link rel="stylesheet" href="treena-theme.css?v=20260915-capui1">
+  <link rel="stylesheet" href="dashboard-ui.css?v=20260915-capui1">
 </head>
 <body class="dashboard-concept" data-page="dashboard" data-base=".">
 <svg class="svg-defs" aria-hidden="true"><defs>
@@ -54,26 +54,6 @@
           <p>Your plan. Your minutes. All in one place.</p>
         </div>
       </div>
-      <article class="plan-panel">
-        <div class="panel-label">Your current plan <span class="status"><i></i><span data-billing-status>—</span></span></div>
-        <div class="plan-overview">
-          <div>
-            <h2 data-plan-name>—</h2>
-            <p>For the everyday calls.</p>
-          </div>
-          <div class="price">$<span data-plan-price>—</span><span>/ month</span></div>
-        </div>
-        <div class="plan-bottom">
-          <span><span data-plan-minutes>—</span> connected minutes each month</span>
-          <a href="pricing.html">View plans <svg><use href="#arrow"/></svg></a>
-        </div>
-        <div class="plan-dates" aria-live="polite">
-          <span data-period-row hidden>Period <b><span data-period-start>—</span> – <span data-period-end>—</span></b></span>
-          <span data-renews-row hidden>Renews <b data-renews-at>—</b></span>
-          <span data-reset-row hidden>Minutes reset <b data-minutes-reset-at>—</b></span>
-          <span data-cancel-row hidden>Plan ends <b data-cancel-effective-at>—</b></span>
-        </div>
-      </article>
       <article class="usage-panel" id="usage" data-usage-state="ok">
         <div class="panel-label">Monthly usage <span class="quiet">Current billing period</span></div>
         <div class="usage-headline">
@@ -89,6 +69,9 @@
           <span><span data-plan-minutes>—</span> min included</span>
         </div>
         <div class="reset-row"><span data-reset-date>Monthly reset date unavailable</span><span data-reset-countdown></span></div>
+        <div class="usage-actions">
+          <a class="settings-button" data-upgrade-plan hidden href="pay.html?plan=plus">Upgrade plan</a>
+        </div>
         <p class="cap-banner" data-cap-banner hidden role="status"></p>
         <div class="usage-note"><span class="tiny-dot"></span>Only time connected on a call counts toward your minutes.</div>
       </article>
@@ -159,6 +142,9 @@
           <div><dt>Billing email</dt><dd><span data-profile-email>—</span></dd></div>
           <div><dt>Payment method</dt><dd>Not available</dd></div>
           <div><dt>Next payment</dt><dd><span data-next-payment>Not available</span></dd></div>
+          <div data-period-row hidden><dt>Period</dt><dd><span data-period-start>—</span> – <span data-period-end>—</span></dd></div>
+          <div data-renews-row hidden><dt>Renews</dt><dd><span data-renews-at>—</span></dd></div>
+          <div data-cancel-row hidden><dt>Plan ends</dt><dd><span data-cancel-effective-at>—</span></dd></div>
         </dl>
         <button class="settings-button" id="manage-billing" type="button">Manage billing <span>↗</span></button>
         <p class="flow-error" id="billing-error" role="alert" hidden></p>
@@ -202,8 +188,8 @@
           </div>
           <div class="field field-check">
             <label for="settings-retain">
-              <input id="settings-retain" name="retain_after_call" type="checkbox" value="on">
-              Save call audio, transcripts, and history
+              <input id="settings-retain" name="retain_after_call" type="checkbox" value="on" aria-describedby="settings-retain-hint">
+              <span class="retain-copy">Save call audio, transcripts, and history</span>
             </label>
             <p class="field-hint" id="settings-retain-hint">Off by default. Login and billing minutes still persist either way.</p>
           </div>
@@ -220,7 +206,7 @@
             <strong><span data-plan-name>—</span> · $<span data-plan-price>—</span> / month</strong>
             <p><span data-renewal>Renewal date unavailable.</span></p>
           </div>
-          <a class="settings-button" href="pricing.html">View plans</a>
+          <a class="settings-button" data-upgrade-plan hidden href="pay.html?plan=plus">Upgrade plan</a>
         </div>
         <div class="settings-row cancel-row">
           <div>
@@ -257,6 +243,6 @@
   </div>
 </main>
 <script src="dashboard-ui.js?v=20260914-usage1"></script>
-<script src="checkout.js?v=20260914-usage1"></script>
+<script src="checkout.js?v=20260915-capui1"></script>
 </body>
 </html>
